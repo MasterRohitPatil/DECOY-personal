@@ -73,6 +73,18 @@ export const AttackLabPage: React.FC = () => {
       node2: 'API Gateway Token Check',
       node3: 'Database Worker Node',
       node4: 'Encrypted Master Vault'
+    },
+    {
+      id: 'ransomware',
+      title: 'Ransomware Backdoor Ingress',
+      icon: Skull,
+      origin: '185.220.101.5 (Upstream Injected)',
+      target: 'auth-srv-01.prod.sentinel',
+      desc: 'Memory injection matching CVE-2024-3094 upstream backdoor executing stage-1 payload in sshd.',
+      damage: 'SSHD process takeover, memory payload staging, and catastrophic lateral key leakage.',
+      node2: 'SSHD Memory Daemon',
+      node3: 'Auth Server (auth-srv-01)',
+      node4: 'Master Keyring Store'
     }
   ];
 
@@ -152,7 +164,7 @@ export const AttackLabPage: React.FC = () => {
       </div>
 
       {/* Attack Scenario Selector Tabs */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         {attacks.map(atk => {
           const Icon = atk.icon;
           const isSelected = atk.id === selectedAttack;

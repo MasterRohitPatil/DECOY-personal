@@ -66,6 +66,18 @@ ATTACK_SCENARIOS = {
         "exploitation_level": 3,
         "is_kev": False,
         "playbook_key": "pb_brute_force"
+    },
+    "ransomware": {
+        "event_type": "RANSOMWARE_BACKDOOR",
+        "title": "Supply Chain Backdoor & Memory Injection Payload",
+        "target_hostname": "auth-srv-01.prod.sentinel",
+        "source_ip": "185.220.101.5",
+        "severity": "CRITICAL",
+        "payload": "Suspicious process injection in sshd daemon matching CVE-2024-3094 upstream backdoor signature. Stage-1 staging detected.",
+        "cvss": 9.8,
+        "exploitation_level": 5,
+        "is_kev": True,
+        "playbook_key": "pb_brute_force"
     }
 }
 
