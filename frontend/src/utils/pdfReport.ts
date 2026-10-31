@@ -230,3 +230,4 @@ export function generatePdfThreatReport(
   const cleanId = warningId.replace(/[^a-zA-Z0-9_-]/g, '_');
   doc.save(`SENTINEL_GRID_REPORT_${cleanId}.pdf`);
 }
+

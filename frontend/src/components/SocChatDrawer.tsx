@@ -527,3 +527,4 @@ export const SocChatDrawer: React.FC<SocChatDrawerProps> = ({
     </div>
   );
 };
+

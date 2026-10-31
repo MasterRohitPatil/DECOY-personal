@@ -53,3 +53,4 @@ def test_otp_flow():
     assert verify_res.status_code == 200
     assert verify_res.json()["status"] == "VERIFIED"
     assert "token" in verify_res.json()
+
