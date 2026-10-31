@@ -1,0 +1,10 @@
+cve_id,title,product,version_constraints,cvss,exploitation_level,epss,kev_flag,description
+CVE-2024-3094,XZ Utils Malicious Backdoor RCE,xz-utils,>=5.6.0 <=5.6.1,10.0,5,0.95,true,Malicious code injected into xz upstream tarballs allowing unauthorized SSH authentication bypass.
+CVE-2023-44487,HTTP/2 Rapid Reset DDoS Exploitation,nginx,>=1.20.0 <=1.25.2,7.5,4,0.88,true,HTTP/2 stream cancellation flood causing immediate resource exhaustion and gateway denial of service.
+CVE-2024-21762,Fortinet FortiOS SSL-VPN Remote Code Execution,fortios,>=7.0.0 <=7.4.2,9.8,5,0.96,true,Out-of-bounds write vulnerability in FortiOS SSL-VPN allowing unauthenticated remote execution.
+CVE-2024-28995,SolarWinds Serv-U Path Traversal Information Disclosure,serv-u,<=15.4.2,8.6,4,0.82,true,Directory traversal allowing attackers to read arbitrary files from the host filesystem.
+CVE-2024-11878,WinRAR Shell Extension Memory Corruption,winrar,<=6.23,8.4,3,0.65,false,Memory corruption when processing crafted recovery volumes leading to arbitrary code execution.
+CVE-2024-27956,Automatic WordPress SQL Injection Flaw,wordpress,<=6.4.2,9.8,5,0.94,true,Critical SQL injection flaw in popular plugin ecosystem permitting remote database compromise.
+CVE-2024-38856,Apache OFBiz Unauthenticated Remote Code Execution,apache-ofbiz,<=18.12.14,9.8,4,0.78,true,Pre-authentication flaw allowing override of view-map authorization to invoke arbitrary groovy scripts.
+CVE-2024-22252,VMware ESXi and Workstation Sandbox Escape,esxi,>=7.0.0 <=8.0.2,9.3,5,0.91,true,Use-after-free issue in XHCI controller allowing malicious guest code to escape VM hypervisor.
+

@@ -1,0 +1,10 @@
+hostname,product,vendor,version,environment,internet_facing,criticality,owner
+core-gw-01.prod.sentinel,nginx,f5,1.24.0,PROD,true,5,Edge Routing
+edge-vpn-01.prod.sentinel,fortios,fortinet,7.2.4,PROD,true,5,NetSec Core
+auth-worker-01.prod.sentinel,xz-utils,tukaani,5.6.0,PROD,false,4,Platform Identity
+storage-srv-02.prod.sentinel,serv-u,solarwinds,15.3.0,PROD,true,4,Enterprise Storage
+cms-portal-01.prod.sentinel,wordpress,automattic,6.4.1,STAGE,true,3,Marketing Ops
+erp-backend-01.prod.sentinel,apache-ofbiz,apache,18.12.05,PROD,false,5,Finance Core
+vm-node-03.prod.sentinel,esxi,vmware,7.0.3,PROD,false,5,Infrastructure Compute
+workstation-dev-12.dev.sentinel,winrar,rarlab,6.20,DEV,false,2,Engineering Team
+
