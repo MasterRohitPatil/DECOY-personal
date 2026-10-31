@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   RefreshCw, BookOpen, ExternalLink, ShieldCheck,
-  Sun, Moon, Search, Bell, User, Sparkles, UploadCloud, LogOut
+  Sun, Moon, Search, Bell, User, Sparkles, UploadCloud, LogOut, Check
 } from 'lucide-react';
 import { OverviewData, UserProfile } from '../types';
 
@@ -34,6 +34,18 @@ export const Navbar: React.FC<NavbarProps> = ({
     if (!name) return 'SO';
     return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
   };
+
+  const [justReset, setJustReset] = useState(false);
+  const [wasResetting, setWasResetting] = useState(false);
+
+  useEffect(() => {
+    if (wasResetting && !resetting) {
+      setJustReset(true);
+      const timer = setTimeout(() => setJustReset(false), 2500);
+      return () => clearTimeout(timer);
+    }
+    setWasResetting(resetting);
+  }, [resetting]);
   return (
     <header className="h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-6 flex items-center justify-between shrink-0 select-none transition-colors duration-200">
       {/* Left: Page Title & Search Bar */}
@@ -109,10 +121,28 @@ export const Navbar: React.FC<NavbarProps> = ({
         <button
           onClick={onReset}
           disabled={resetting}
-          className="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white font-medium text-xs flex items-center gap-1.5 transition-all border border-slate-200 dark:border-slate-700"
+          className={`px-3 py-1.5 rounded-xl font-medium text-xs flex items-center gap-1.5 transition-all border ${
+            justReset
+              ? 'bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 border-emerald-300 dark:border-emerald-800'
+              : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white border-slate-200 dark:border-slate-700'
+          }`}
         >
-          <RefreshCw className={`w-3.5 h-3.5 ${resetting ? 'animate-spin text-cyan-500' : ''}`} />
-          <span className="hidden md:inline">{resetting ? 'Resetting...' : 'Reset'}</span>
+          {resetting ? (
+            <>
+              <RefreshCw className="w-3.5 h-3.5 animate-spin text-cyan-500" />
+              <span className="hidden md:inline">Resetting DB...</span>
+            </>
+          ) : justReset ? (
+            <>
+              <Check className="w-3.5 h-3.5 text-emerald-500" />
+              <span className="hidden md:inline">Reset Complete ✓</span>
+            </>
+          ) : (
+            <>
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span className="hidden md:inline">Reset Demo</span>
+            </>
+          )}
         </button>
 
         {/* Active Session Indicator */}

@@ -4,7 +4,8 @@ import {
   CheckCircle2, AlertTriangle, Layers, ExternalLink, Zap,
   Radio, Bot, FileCode, Sliders, Target, ChevronRight,
   TrendingUp, Play, Clock, ShieldCheck, ArrowRight, Lightbulb,
-  Share2, Network, Terminal, UploadCloud, Info, Globe, Download
+  Share2, Network, Terminal, UploadCloud, Info, Globe, Download,
+  RefreshCw, Check
 } from 'lucide-react';
 import { OverviewData, WarningItem } from '../types';
 import { generatePdfThreatReport } from '../utils/pdfReport';
@@ -12,6 +13,9 @@ import { generatePdfThreatReport } from '../utils/pdfReport';
 interface DashboardPageProps {
   overview: OverviewData | null;
   warnings: WarningItem[];
+  loading?: boolean;
+  error?: string | null;
+  onRetry?: () => void;
   onNavigateToWarnings: () => void;
   onNavigateToAttacks: () => void;
   onNavigateToAssets?: () => void;
@@ -23,6 +27,9 @@ interface DashboardPageProps {
 export const DashboardPage: React.FC<DashboardPageProps> = ({
   overview,
   warnings,
+  loading = false,
+  error = null,
+  onRetry,
   onNavigateToWarnings,
   onNavigateToAttacks,
   onNavigateToAssets,
@@ -37,94 +44,41 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   const activeWarningsCount = warnings.length || (overview?.active_warnings ?? 0);
 
   // Active attack simulation step state for visual demonstration
-  const [activeStep, setActiveStep] = useState<number>(3); // 1 to 5
+  const [activeStep, setActiveStep] = useState<number>(5);
   const [simulating, setSimulating] = useState<boolean>(false);
+  const [simDone, setSimDone] = useState<boolean>(false);
   const [selectedScenario, setSelectedScenario] = useState<string>('Brute Force (SSH)');
 
-  // Dynamic threat feed derived directly from ingested warnings
-  const fallbackThreatFeed = [
-    {
-      id: 'CVE-2024-3094',
-      warningId: 'W-2026-001',
-      title: 'XZ Utils Upstream Backdoor RCE',
-      src: 'CISA KEV',
-      time: '1 min ago',
-      sev: 'Critical',
-      score: 98.2,
-      asset: 'auth-srv-01.prod',
-      ip: '185.220.101.5',
-      policy: 'R2_KEV_ESCALATION',
-      status: 'CONFIRMED_EXPOSED',
-      vector: 'SSH Port 22 Handshake',
-      color: '#EF4444',
-      product: 'xz-utils 5.6.0',
-      action: 'Downgrade to xz 5.4.6 or apply upstream patch immediately.'
-    },
-    {
-      id: 'CVE-2024-11878',
-      warningId: 'W-2026-002',
-      title: 'WinRAR Shell Memory Corruption',
-      src: 'CISA KEV',
-      time: '3 mins ago',
-      sev: 'Critical',
-      score: 93.4,
-      asset: 'workstation-dev-12',
-      ip: '198.51.100.23',
-      policy: 'R2_ACTIVE_EXPLOIT',
-      status: 'CONFIRMED_EXPOSED',
-      vector: 'Malicious .rar Processing',
-      color: '#EF4444',
-      product: 'winrar 6.20',
-      action: 'Deploy WinRAR 6.23 update across all Windows workstations.'
-    },
-    {
-      id: 'CVE-2024-28995',
-      warningId: 'W-2026-003',
-      title: 'SolarWinds Serv-U Path Traversal',
-      src: 'NVD (NIST)',
-      time: '6 mins ago',
-      sev: 'High',
-      score: 82.0,
-      asset: 'storage-srv-02.prod',
-      ip: '203.0.113.45',
-      policy: 'R3_HIGH_EXPOSURE',
-      status: 'CONFIRMED_EXPOSED',
-      vector: 'HTTP Directory Traversal',
-      color: '#F97316',
-      product: 'serv-u 15.3.0',
-      action: 'Block relative path traversal regex & patch Serv-U to 15.4.2.'
-    },
-    {
-      id: 'CVE-2023-44487',
-      warningId: 'W-2026-004',
-      title: 'HTTP/2 Rapid Reset DDoS Flood',
-      src: 'CERT-In',
-      time: '10 mins ago',
-      sev: 'High',
-      score: 78.5,
-      asset: 'edge-proxy-01.prod',
-      ip: '45.33.32.156',
-      policy: 'R7_WAF_BLOCK',
-      status: 'MITIGATED',
-      vector: 'TCP Stream Reset Flood',
-      color: '#F97316',
-      product: 'nginx 1.24.0',
-      action: 'Enforce keepalive_timeout and limit_req HTTP/2 frame limits.'
-    }
-  ];
+  // PDF Export Feedback State
+  const [exportingPdf, setExportingPdf] = useState<boolean>(false);
+  const [pdfExported, setPdfExported] = useState<boolean>(false);
 
-  const dynamicThreatFeed = warnings.length > 0 ? warnings.map(w => {
+  const handleExportPdf = async () => {
+    if (!spotlightWarning) return;
+    setExportingPdf(true);
+    try {
+      await generatePdfThreatReport(spotlightWarning, overview);
+      setPdfExported(true);
+      setTimeout(() => setPdfExported(false), 2500);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setExportingPdf(false);
+    }
+  };
+
+  const dynamicThreatFeed = warnings.map(w => {
     const isKev = w.rules_fired && w.rules_fired.some(r => r.includes('KEV'));
     const src = isKev ? 'CISA KEV' : (w.rules_fired && w.rules_fired.some(r => r.includes('WAF')) ? 'CERT-In' : 'NVD (NIST)');
     const cveMatch = w.title.match(/CVE-\d{4}-\d+/i);
     const cveId = cveMatch ? cveMatch[0].toUpperCase() : (w.id.startsWith('W-') ? w.id : `CVE-2024-${w.id.slice(-4)}`);
-    
+
     return {
       id: cveId,
       warningId: w.id,
       title: w.title,
       src,
-      time: 'Just now',
+      time: 'Real-time',
       sev: w.band === 'CRITICAL' ? 'Critical' : (w.band === 'HIGH' ? 'High' : 'Medium'),
       score: w.risk_score,
       asset: w.target_hostname || 'auth-srv-01.prod.sentinel',
@@ -136,7 +90,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
       product: w.title.split(' ')[0],
       action: w.brief_summary || 'Execute perimeter IP block and deploy verified vendor update.'
     };
-  }) : fallbackThreatFeed;
+  });
 
   const [selectedThreatIdx, setSelectedThreatIdx] = useState<number>(0);
   const [inspectedNode, setInspectedNode] = useState<string | null>(null);
@@ -144,7 +98,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   const activeThreat = dynamicThreatFeed[selectedThreatIdx] || dynamicThreatFeed[0];
 
   // Spotlight Warning (Top Priority Item)
-  const spotlightWarning = warnings[0] || {
+  const spotlightWarning = warnings[0] || (activeThreat ? {
     id: activeThreat.warningId,
     title: activeThreat.title,
     risk_score: activeThreat.score,
@@ -155,27 +109,96 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
     created_at: new Date().toISOString(),
     rules_fired: ['R1_ACTIVE_EXPLOIT_ESCALATION', 'R2_KEV_CONFIRMED_INTERNET_FACING'],
     brief_summary: activeThreat.action
-  };
+  } : null);
 
   const handleRunSimulation = (scenario: string) => {
     setSelectedScenario(scenario);
     setSimulating(true);
+    setSimDone(false);
     setActiveStep(1);
 
-    setTimeout(() => setActiveStep(2), 700);
-    setTimeout(() => setActiveStep(3), 1400);
-    setTimeout(() => setActiveStep(4), 2100);
+    setTimeout(() => setActiveStep(2), 500);
+    setTimeout(() => setActiveStep(3), 1000);
+    setTimeout(() => setActiveStep(4), 1600);
     setTimeout(() => {
       setActiveStep(5);
       setSimulating(false);
-    }, 2800);
+      setSimDone(true);
+      setTimeout(() => setSimDone(false), 3000);
+    }, 2200);
   };
+
+  // 1. LOADING SKELETON
+  if (loading && !overview) {
+    return (
+      <div className="p-6 lg:p-8 space-y-6 max-w-7xl mx-auto animate-pulse">
+        {/* Header Skeleton */}
+        <div className="bg-white dark:bg-[#0B0F19] p-6 rounded-2xl border border-slate-200 dark:border-slate-800 flex justify-between items-center">
+          <div className="space-y-2">
+            <div className="h-4 w-48 bg-slate-200 dark:bg-slate-800 rounded"></div>
+            <div className="h-6 w-80 bg-slate-200 dark:bg-slate-800 rounded"></div>
+            <div className="h-3 w-96 bg-slate-200 dark:bg-slate-800 rounded"></div>
+          </div>
+          <div className="flex gap-2">
+            <div className="h-9 w-28 bg-slate-200 dark:bg-slate-800 rounded-xl"></div>
+            <div className="h-9 w-32 bg-slate-200 dark:bg-slate-800 rounded-xl"></div>
+          </div>
+        </div>
+
+        {/* 4 Metric Cards Skeleton */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {[1, 2, 3, 4].map(i => (
+            <div key={i} className="bg-white dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 space-y-3">
+              <div className="flex justify-between items-start">
+                <div className="w-10 h-10 rounded-xl bg-slate-200 dark:bg-slate-800"></div>
+                <div className="w-12 h-5 rounded-full bg-slate-200 dark:bg-slate-800"></div>
+              </div>
+              <div className="h-8 w-16 bg-slate-200 dark:bg-slate-800 rounded"></div>
+              <div className="h-3 w-28 bg-slate-200 dark:bg-slate-800 rounded"></div>
+            </div>
+          ))}
+        </div>
+
+        {/* Hero Row Skeleton */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 bg-white dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 h-72">
+            <div className="h-4 w-40 bg-slate-200 dark:bg-slate-800 rounded mb-4"></div>
+            <div className="h-48 w-full bg-slate-100 dark:bg-slate-900 rounded-xl"></div>
+          </div>
+          <div className="bg-white dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 h-72 space-y-4">
+            <div className="h-4 w-32 bg-slate-200 dark:bg-slate-800 rounded"></div>
+            <div className="h-6 w-full bg-slate-200 dark:bg-slate-800 rounded"></div>
+            <div className="h-20 w-full bg-slate-100 dark:bg-slate-900 rounded"></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 lg:p-8 space-y-6 max-w-7xl mx-auto transition-colors duration-200">
       
+      {/* ERROR STATE BANNER */}
+      {error && (
+        <div className="p-4 rounded-xl bg-red-50 dark:bg-red-950/60 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 text-xs flex items-center justify-between shadow-sm">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-red-500 shrink-0" />
+            <span><strong>Connection Diagnostic:</strong> {error}</span>
+          </div>
+          {onRetry && (
+            <button
+              onClick={onRetry}
+              className="px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span>Retry Sync</span>
+            </button>
+          )}
+        </div>
+      )}
+
       {/* 1. Header Banner & Quick Status */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs transition-colors duration-200">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-[#0B0F19] p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs transition-colors duration-200">
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
@@ -202,13 +225,34 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             </button>
           )}
 
-          <button
-            onClick={() => generatePdfThreatReport(spotlightWarning, overview)}
-            className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs flex items-center gap-1.5 border border-slate-200 dark:border-slate-700 shadow-xs transition-all"
-          >
-            <Download className="w-4 h-4 text-blue-600" />
-            <span>Export Executive PDF</span>
-          </button>
+          {spotlightWarning && (
+            <button
+              onClick={handleExportPdf}
+              disabled={exportingPdf}
+              className={`px-4 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 border shadow-xs transition-all ${
+                pdfExported
+                  ? 'bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800'
+                  : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700'
+              }`}
+            >
+              {exportingPdf ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin text-blue-500" />
+                  <span>Compiling Dossier...</span>
+                </>
+              ) : pdfExported ? (
+                <>
+                  <Check className="w-4 h-4 text-emerald-500" />
+                  <span>Report Downloaded ✓</span>
+                </>
+              ) : (
+                <>
+                  <Download className="w-4 h-4 text-blue-600" />
+                  <span>Export Executive PDF</span>
+                </>
+              )}
+            </button>
+          )}
 
           <button
             onClick={onNavigateToAttacks}
@@ -220,10 +264,10 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
         </div>
       </div>
 
-      {/* 2. Top Metric Cards Row (Clean, High-Contrast & Dynamic) */}
+      {/* 2. Top Metric Cards Row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Card 1: Critical Threats */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs hover:border-red-400/60 dark:hover:border-red-500/50 transition-all">
+        <div className="bg-white dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs hover:border-red-400/60 dark:hover:border-red-500/50 transition-all">
           <div className="flex justify-between items-start">
             <div className="w-10 h-10 rounded-xl bg-red-50 dark:bg-red-950/70 border border-red-200 dark:border-red-800/60 flex items-center justify-center text-red-600 dark:text-red-400">
               <ShieldAlert className="w-5 h-5" />
@@ -246,7 +290,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
         </div>
 
         {/* Card 2: Active Warnings */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs hover:border-amber-400/60 dark:hover:border-amber-500/50 transition-all">
+        <div className="bg-white dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs hover:border-amber-400/60 dark:hover:border-amber-500/50 transition-all">
           <div className="flex justify-between items-start">
             <div className="w-10 h-10 rounded-xl bg-amber-50 dark:bg-amber-950/70 border border-amber-200 dark:border-amber-800/60 flex items-center justify-center text-amber-600 dark:text-amber-400">
               <AlertTriangle className="w-5 h-5" />
@@ -269,7 +313,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
         </div>
 
         {/* Card 3: Monitored Assets */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs hover:border-blue-400/60 dark:hover:border-blue-500/50 transition-all">
+        <div className="bg-white dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs hover:border-blue-400/60 dark:hover:border-blue-500/50 transition-all">
           <div className="flex justify-between items-start">
             <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950/70 border border-blue-200 dark:border-blue-800/60 flex items-center justify-center text-blue-600 dark:text-blue-400">
               <Server className="w-5 h-5" />
@@ -292,7 +336,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
         </div>
 
         {/* Card 4: System Health & Noise Filter */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs hover:border-emerald-400/60 dark:hover:border-emerald-500/50 transition-all">
+        <div className="bg-white dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs hover:border-emerald-400/60 dark:hover:border-emerald-500/50 transition-all">
           <div className="flex justify-between items-start">
             <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-950/70 border border-emerald-200 dark:border-emerald-800/60 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
               <CheckCircle2 className="w-5 h-5" />
@@ -318,8 +362,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
       {/* 3. Hero Row: Threat Activity Trend + EARLY WARNING Spotlight */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
-        {/* Left 2 Cols: Threat Activity Trend (24h Area Chart) */}
-        <div className="lg:col-span-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xs flex flex-col justify-between">
+        {/* Left 2 Cols: Threat Activity Trend */}
+        <div className="lg:col-span-2 bg-white dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xs flex flex-col justify-between">
           <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
             <div className="flex items-center gap-2">
               <Activity className="w-4 h-4 text-blue-600 dark:text-cyan-400" />
@@ -343,7 +387,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             </div>
           </div>
 
-          {/* Smooth Interactive SVG Curve Area Chart */}
+          {/* SVG Curve Chart */}
           <div className="py-6 relative">
             <svg viewBox="0 0 500 160" className="w-full h-44 overflow-visible">
               <defs>
@@ -357,12 +401,10 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                 </linearGradient>
               </defs>
 
-              {/* Background grid lines */}
               <line x1="0" y1="30" x2="500" y2="30" stroke="#E2E8F0" strokeDasharray="3 3" className="dark:stroke-slate-800" />
               <line x1="0" y1="80" x2="500" y2="80" stroke="#E2E8F0" strokeDasharray="3 3" className="dark:stroke-slate-800" />
               <line x1="0" y1="130" x2="500" y2="130" stroke="#E2E8F0" strokeDasharray="3 3" className="dark:stroke-slate-800" />
 
-              {/* Total Threats Area & Line (Blue) */}
               <path
                 d="M 0,110 C 60,95 100,120 160,85 C 220,50 260,35 320,65 C 380,95 440,55 500,75 L 500,150 L 0,150 Z"
                 fill="url(#blueGradient)"
@@ -375,7 +417,6 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                 strokeLinecap="round"
               />
 
-              {/* Critical Threats Area & Line (Red) */}
               <path
                 d="M 0,140 C 60,135 100,140 160,125 C 220,110 260,115 320,120 C 380,130 440,115 500,125 L 500,150 L 0,150 Z"
                 fill="url(#redGradient)"
@@ -388,315 +429,262 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                 strokeLinecap="round"
               />
 
-              {/* Highlight Peak Marker */}
               <circle cx="280" cy="45" r="4.5" fill="#3B82F6" stroke="#ffffff" strokeWidth="2" />
               <line x1="280" y1="45" x2="280" y2="150" stroke="#3B82F6" strokeWidth="1" strokeDasharray="2 2" />
             </svg>
 
-            {/* Interactive Tooltip Badge */}
             <div className="absolute top-4 left-[52%] -translate-x-1/2 bg-slate-900 text-white text-[10px] font-mono px-2.5 py-1 rounded-lg shadow-lg border border-slate-700 pointer-events-none">
               <span className="font-bold text-cyan-300">{activeWarningsCount} Active Signals</span> ({criticalCount} Critical)
             </div>
+          </div>
 
-            {/* Time labels */}
-            <div className="flex justify-between text-[10px] font-mono text-slate-400 dark:text-slate-500 mt-2 px-1">
-              <span>12AM</span>
-              <span>4AM</span>
-              <span>8AM</span>
-              <span>12PM</span>
-              <span>4PM</span>
-              <span>8PM</span>
-            </div>
+          <div className="flex justify-between text-[11px] font-mono text-slate-400 pt-2 border-t border-slate-100 dark:border-slate-800">
+            <span>12AM</span>
+            <span>4AM</span>
+            <span>8AM</span>
+            <span>12PM</span>
+            <span>4PM</span>
+            <span>8PM</span>
           </div>
         </div>
 
-        {/* Right 1 Col: EARLY WARNING Spotlight Card (Exact Match to Reference Image 1) */}
-        <div className="bg-gradient-to-br from-red-50/60 via-white to-white dark:from-red-950/30 dark:via-slate-900 dark:to-slate-900 border border-red-200 dark:border-red-900/60 rounded-2xl p-5 shadow-xs flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5 text-red-600 dark:text-red-400 font-bold text-xs uppercase tracking-wider">
-                <ShieldAlert className="w-4 h-4" />
-                <span>EARLY WARNING</span>
+        {/* Right 1 Col: Spotlight Warning */}
+        {spotlightWarning ? (
+          <div className="bg-white dark:bg-[#0B0F19] border-2 border-red-500/40 dark:border-red-500/50 rounded-2xl p-6 shadow-sm flex flex-col justify-between relative overflow-hidden">
+            <div className="absolute -right-8 -top-8 w-32 h-32 bg-red-500/10 rounded-full blur-2xl pointer-events-none"></div>
+
+            <div>
+              <div className="flex justify-between items-center pb-3 border-b border-slate-100 dark:border-slate-800">
+                <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/60 px-2 py-0.5 rounded-full border border-red-200 dark:border-red-900 flex items-center gap-1">
+                  <Flame className="w-3 h-3 text-red-500" /> Early Warning
+                </span>
+                <span className="text-xs font-mono font-black text-red-600 dark:text-red-400">
+                  {spotlightWarning.band}
+                </span>
               </div>
-              <span className="px-2 py-0.5 rounded-full bg-red-600 text-white text-[10px] font-bold uppercase tracking-wider shadow-xs">
-                {spotlightWarning.band}
-              </span>
-            </div>
 
-            <h3 className="font-extrabold text-sm text-slate-900 dark:text-white mt-2">
-              {spotlightWarning.title}
-            </h3>
-            <p className="text-[11px] text-slate-600 dark:text-slate-300 mt-1 leading-relaxed">
-              Targeting <code className="text-red-600 dark:text-red-400 font-mono font-bold">{spotlightWarning.target_hostname}</code>. Priority score evaluated by Section 3.4 formula.
-            </p>
+              <div className="mt-4">
+                <h3 className="font-extrabold text-sm text-slate-900 dark:text-white leading-tight">
+                  {spotlightWarning.title}
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                  Targeting <code className="text-slate-800 dark:text-slate-200 font-bold">{spotlightWarning.target_hostname}</code>. Priority score evaluated by Section 3.4 formula.
+                </p>
+              </div>
 
-            {/* Circular Risk Score Gauge + Why this matters */}
-            <div className="mt-4 flex items-center gap-4 bg-white/80 dark:bg-slate-900/80 p-3 rounded-xl border border-red-100 dark:border-slate-800">
-              {/* Radial Score Gauge */}
-              <div className="relative w-16 h-16 shrink-0 flex items-center justify-center">
-                <svg className="w-full h-full -rotate-90" viewBox="0 0 36 36">
-                  <path
-                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                    fill="none"
-                    stroke="#E2E8F0"
-                    strokeWidth="3.5"
-                    className="dark:stroke-slate-800"
-                  />
-                  <path
-                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                    fill="none"
-                    stroke="#EF4444"
-                    strokeWidth="3.5"
-                    strokeDasharray={`${spotlightWarning.risk_score.toFixed(1)}, 100`}
-                    strokeLinecap="round"
-                  />
-                </svg>
-                <div className="absolute text-center">
-                  <span className="text-sm font-black text-slate-900 dark:text-white block leading-none font-mono">
+              {/* Priority Score Metric */}
+              <div className="my-4 p-3.5 rounded-xl bg-red-50/60 dark:bg-red-950/30 border border-red-200/80 dark:border-red-900/60 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] font-mono text-slate-500 block uppercase font-bold">Priority Score</span>
+                  <span className="text-2xl font-black text-red-600 dark:text-red-400 font-mono">
                     {spotlightWarning.risk_score.toFixed(1)}
                   </span>
-                  <span className="text-[8px] font-bold text-red-600 dark:text-red-400 uppercase">
-                    Risk
-                  </span>
                 </div>
+                <span className="px-2.5 py-1 rounded-lg bg-red-600 text-white font-mono text-xs font-black">
+                  RISK
+                </span>
               </div>
 
-              {/* Bullet points: Why this matters? */}
-              <div className="text-[10px] space-y-1 text-slate-600 dark:text-slate-400">
-                <span className="font-bold text-slate-800 dark:text-slate-200 block text-[11px]">
-                  Why this matters?
-                </span>
-                <div className="flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0"></span>
+              <div className="space-y-1.5 text-xs text-slate-600 dark:text-slate-300">
+                <span className="text-[10px] font-mono text-slate-400 uppercase font-semibold block">Why this matters?</span>
+                <div className="flex items-center gap-1.5 text-[11px]">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
                   <span>Confirmed version-constraint match</span>
                 </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0"></span>
+                <div className="flex items-center gap-1.5 text-[11px]">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
                   <span>Internet-facing perimeter exposure</span>
                 </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0"></span>
+                <div className="flex items-center gap-1.5 text-[11px]">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
                   <span>Rule R1 & R2 Escalations fired</span>
                 </div>
               </div>
-            </div>
 
-            {/* Recommended Action Box */}
-            <div className="mt-3 p-3 bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/60 rounded-xl">
-              <div className="flex items-center gap-1 text-[11px] font-bold text-amber-800 dark:text-amber-300">
-                <Lightbulb className="w-3.5 h-3.5" />
-                <span>Recommended Action:</span>
+              <div className="mt-3 p-2.5 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-[11px] text-slate-600 dark:text-slate-300">
+                <strong className="text-slate-800 dark:text-slate-100 block">Recommended Action:</strong>
+                <span className="line-clamp-2">{spotlightWarning.brief_summary}</span>
               </div>
-              <p className="text-[10px] text-amber-700 dark:text-amber-400 mt-1 leading-relaxed">
-                {spotlightWarning.brief_summary || 'Deploy immediate perimeter IP block and upgrade upstream package to verified patched revision.'}
-              </p>
-            </div>
-          </div>
-
-          {/* Action Button */}
-          <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2">
-            <button
-              onClick={() => generatePdfThreatReport(spotlightWarning, overview)}
-              className="py-2 px-3 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 rounded-xl transition-all flex items-center gap-1 border border-slate-200 dark:border-slate-700"
-            >
-              <Download className="w-3.5 h-3.5" />
-              <span>PDF Report</span>
-            </button>
-
-            <button
-              onClick={() => onSelectWarning(spotlightWarning.id)}
-              className="flex-1 py-2 px-4 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition-all"
-            >
-              <span>View Full Dossier</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* 4. Live Attack Simulation Stepper + AI Threat Summary Row */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xs">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-4 border-b border-slate-100 dark:border-slate-800">
-          <div className="flex items-center gap-2">
-            <Zap className="w-4 h-4 text-blue-600 dark:text-cyan-400" />
-            <h3 className="font-bold text-sm text-slate-900 dark:text-white">
-              Live Attack Simulation Pipeline
-            </h3>
-            <span className="text-xs text-slate-400">({selectedScenario})</span>
-          </div>
-
-          <div className="flex items-center gap-2">
-            {simulating && (
-              <span className="text-[10px] font-mono text-cyan-600 dark:text-cyan-400 font-bold bg-cyan-50 dark:bg-cyan-950 px-2.5 py-0.5 rounded-full border border-cyan-200 dark:border-cyan-800 animate-pulse">
-                Running Simulation...
-              </span>
-            )}
-            <button
-              onClick={() => handleRunSimulation('SSH Brute Force')}
-              disabled={simulating}
-              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition-all shadow-xs disabled:opacity-50 flex items-center gap-1"
-            >
-              <Play className="w-3 h-3" />
-              <span>Rerun Pipeline</span>
-            </button>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mt-6 items-center">
-          {/* Stepper (Left 7 Cols) */}
-          <div className="lg:col-span-7 space-y-4">
-            <div className="flex items-center justify-between relative px-2">
-              <div className="absolute top-4 left-6 right-6 h-0.5 bg-slate-200 dark:bg-slate-800 -z-0">
-                <div
-                  className="h-full bg-blue-500 transition-all duration-500"
-                  style={{ width: `${((activeStep - 1) / 4) * 100}%` }}
-                ></div>
-              </div>
-
-              {[
-                { step: 1, label: 'Simulation Started' },
-                { step: 2, label: 'Event Generated' },
-                { step: 3, label: 'AI Analysis' },
-                { step: 4, label: 'Risk Scored' },
-                { step: 5, label: 'Alert Dispatched' }
-              ].map(item => (
-                <div key={item.step} className="flex flex-col items-center relative z-10">
-                  <div
-                    className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
-                      activeStep >= item.step
-                        ? 'bg-blue-600 text-white shadow-xs'
-                        : 'bg-slate-100 dark:bg-slate-800 text-slate-400 border border-slate-200 dark:border-slate-700'
-                    }`}
-                  >
-                    {activeStep > item.step ? '✓' : item.step}
-                  </div>
-                  <span className="text-[10px] text-slate-500 dark:text-slate-400 mt-2 font-medium text-center max-w-[70px]">
-                    {item.label}
-                  </span>
-                </div>
-              ))}
             </div>
 
-            <div className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-400 flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-blue-500 animate-ping"></span>
-              <span>
-                <strong>Pipeline Telemetry:</strong> Ingested 18 authentication events on auth-srv-01 &rarr; correlated with CVE-2024-3094.
-              </span>
+            <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex gap-2">
+              <button
+                onClick={handleExportPdf}
+                disabled={exportingPdf}
+                className="flex-1 py-2 px-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1 border border-slate-200 dark:border-slate-700"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>PDF Report</span>
+              </button>
+              <button
+                onClick={() => onSelectWarning(spotlightWarning.id)}
+                className="flex-1 py-2 px-3 bg-red-600 hover:bg-red-500 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-1"
+              >
+                <span>View Full Dossier</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
             </div>
           </div>
-
-          {/* AI Threat Summary Box (Right 5 Cols) */}
-          <div className="lg:col-span-5 bg-blue-50/50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900/60 rounded-xl p-4">
-            <div className="flex items-center justify-between pb-2 border-b border-blue-200/60 dark:border-blue-900">
-              <div className="flex items-center gap-1.5 text-xs font-bold text-blue-900 dark:text-blue-300">
-                <Bot className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                <span>AI Threat Assessment Engine</span>
-              </div>
-              <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200">
-                Confidence: 96%
-              </span>
-            </div>
-
-            <p className="text-xs text-slate-700 dark:text-slate-300 mt-2.5 leading-relaxed">
-              Coordinated authentication brute force attack detected targeting public gateway. Matches known scanner behavior; automated isolation rule staged.
+        ) : (
+          <div className="bg-white dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm flex flex-col justify-center items-center text-center">
+            <ShieldCheck className="w-12 h-12 text-emerald-500 mb-3" />
+            <h4 className="font-bold text-sm text-slate-900 dark:text-white">Zero Active Exposures</h4>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-xs">
+              All monitored enterprise hosts are safe and no unmitigated CVEs are affecting your inventory.
             </p>
-
-            <div className="mt-3 pt-2 border-t border-blue-200/50 dark:border-blue-900/50 flex justify-between text-[11px] font-mono text-slate-600 dark:text-slate-400">
-              <span>S: 0.95 | E: 1.00</span>
-              <span>X: 1.00 | V: 0.80</span>
-              <span className="font-bold text-blue-600 dark:text-blue-400">Score: 93.4 (CRITICAL)</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* 5. DYNAMIC THREAT INTELLIGENCE FEED & INTERACTIVE ATTACK CORRELATION GRAPH */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        
-        {/* Left: Interactive Threat Intelligence Feed (5 Cols) */}
-        <div className="lg:col-span-5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-3">
-          <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
-            <div className="flex items-center gap-2">
-              <Radio className="w-4 h-4 text-blue-600 dark:text-cyan-400" />
-              <div>
-                <h4 className="font-bold text-xs text-slate-900 dark:text-white uppercase tracking-wider">
-                  Threat Intelligence Feed
-                </h4>
-                <span className="text-[10px] text-slate-400 block font-normal">
-                  Click any advisory to pivot the correlation graph &rarr;
-                </span>
-              </div>
-            </div>
-
             {onOpenUpload && (
               <button
                 onClick={onOpenUpload}
-                className="px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900 font-bold text-[10px] border border-blue-200 dark:border-blue-800 flex items-center gap-1 transition-all"
+                className="mt-4 px-4 py-2 bg-blue-600 text-white font-bold text-xs rounded-xl hover:bg-blue-500 shadow-sm transition-all"
               >
-                <UploadCloud className="w-3 h-3" />
+                Ingest Threat Feed (CSV)
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* 4. Live Attack Simulation Pipeline Stepper */}
+      <div className="bg-white dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
+          <div className="flex items-center gap-2">
+            <Terminal className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+            <h3 className="font-bold text-sm text-slate-900 dark:text-white">
+              Live Attack Simulation Pipeline
+            </h3>
+            <span className="text-[11px] font-mono text-slate-500">
+              ({selectedScenario})
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => handleRunSimulation(selectedScenario)}
+              disabled={simulating}
+              className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 border border-slate-200 dark:border-slate-700 disabled:opacity-50"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${simulating ? 'animate-spin text-blue-500' : ''}`} />
+              <span>{simulating ? 'Ingesting Telemetry...' : simDone ? 'Pipeline Evaluated ✓' : 'Rerun Pipeline'}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* 5-Step Process Bar */}
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 pt-1">
+          {[
+            { step: 1, title: 'Simulation Started', desc: 'Raw synthetic event generated' },
+            { step: 2, title: 'Event Generated', desc: 'Timestamp & source IP logged' },
+            { step: 3, title: 'Inventory Match', desc: 'SemVer matched against inventory' },
+            { step: 4, title: 'Risk Scored', desc: 'Section 3.4 SEXVI evaluated' },
+            { step: 5, title: 'Alert Dispatched', desc: 'WhatsApp & SMTP dispatched' }
+          ].map(s => {
+            const isCompleted = activeStep >= s.step;
+            const isCurrent = activeStep === s.step;
+            return (
+              <div
+                key={s.step}
+                className={`p-3 rounded-xl border transition-all ${
+                  isCurrent
+                    ? 'bg-blue-50/80 dark:bg-blue-950/40 border-blue-400 text-blue-900 dark:text-blue-100 ring-1 ring-blue-400'
+                    : isCompleted
+                    ? 'bg-emerald-50/60 dark:bg-emerald-950/20 border-emerald-300 dark:border-emerald-800/60 text-slate-800 dark:text-slate-200'
+                    : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-400'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                    isCompleted
+                      ? 'bg-emerald-600 text-white'
+                      : 'bg-slate-200 dark:bg-slate-800 text-slate-500'
+                  }`}>
+                    {isCompleted ? '✓' : s.step}
+                  </span>
+                  <span className="text-[10px] font-mono text-slate-400">Step {s.step}</span>
+                </div>
+                <h4 className="font-bold text-xs truncate">{s.title}</h4>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">{s.desc}</p>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 5. THREAT INTELLIGENCE FEED + ATTACK CORRELATION RADIAL GRAPH */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        {/* Left Column: Feed Table (5 Cols) */}
+        <div className="lg:col-span-5 bg-white dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-3">
+          <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+            <div>
+              <h4 className="font-bold text-xs text-slate-900 dark:text-white uppercase tracking-wider">
+                Threat Intelligence Feed
+              </h4>
+              <p className="text-[10px] text-slate-400">
+                Click any advisory to pivot the correlation graph →
+              </p>
+            </div>
+            {onOpenUpload && (
+              <button
+                onClick={onOpenUpload}
+                className="px-2.5 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 text-[10px] font-bold rounded-lg transition-all"
+              >
                 Upload CSV
               </button>
             )}
           </div>
 
-          <div className="space-y-2 text-xs max-h-[460px] overflow-y-auto pr-1">
-            {dynamicThreatFeed.map((item, idx) => {
-              const isSelected = selectedThreatIdx === idx;
-              return (
-                <div
-                  key={item.id + idx}
-                  onClick={() => {
-                    setSelectedThreatIdx(idx);
-                    setInspectedNode(null);
-                  }}
-                  className={`p-3 rounded-xl border cursor-pointer transition-all ${
-                    isSelected
-                      ? 'bg-blue-50/80 dark:bg-slate-800 border-blue-500 dark:border-cyan-500 shadow-xs ring-1 ring-blue-400 dark:ring-cyan-500'
-                      : 'bg-slate-50/70 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 hover:bg-slate-100/80'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
-                        {item.src}
-                      </span>
-                      <span className="text-xs font-bold text-slate-900 dark:text-white font-mono">
-                        {item.id}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-1.5">
-                      <span className={`text-[9px] font-mono font-bold px-2 py-0.5 rounded ${
+          <div className="space-y-2 max-h-[380px] overflow-y-auto">
+            {dynamicThreatFeed.length === 0 ? (
+              <div className="p-8 text-center text-slate-400 text-xs">
+                No threat advisories currently ingested.
+              </div>
+            ) : (
+              dynamicThreatFeed.map((item, idx) => {
+                const isSelected = idx === selectedThreatIdx;
+                return (
+                  <div
+                    key={item.id + idx}
+                    onClick={() => setSelectedThreatIdx(idx)}
+                    className={`p-3 rounded-xl border transition-all cursor-pointer ${
+                      isSelected
+                        ? 'bg-blue-50/70 dark:bg-blue-950/40 border-blue-400 shadow-xs ring-1 ring-blue-400'
+                        : 'bg-slate-50/60 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                          {item.src}
+                        </span>
+                        <span className="font-mono text-xs font-bold text-slate-800 dark:text-slate-200">
+                          {item.id}
+                        </span>
+                      </div>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                         item.sev === 'Critical'
-                          ? 'bg-red-100 dark:bg-red-950 text-red-700 dark:text-red-400'
-                          : 'bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-400'
+                          ? 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400'
+                          : 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400'
                       }`}>
                         {item.sev}
                       </span>
-                      {isSelected && (
-                        <span className="text-[9px] font-bold text-blue-600 dark:text-cyan-400 animate-pulse font-mono">
-                          ● PIVOTED
-                        </span>
-                      )}
+                    </div>
+
+                    <h5 className="font-bold text-xs text-slate-900 dark:text-white truncate">
+                      {item.title}
+                    </h5>
+
+                    <div className="flex items-center justify-between text-[11px] text-slate-500 mt-1 font-mono">
+                      <span>Target: <strong className="text-slate-700 dark:text-slate-300">{item.asset.split('.')[0]}</strong></span>
+                      <span className="font-bold text-red-600 dark:text-red-400">Risk: {item.score.toFixed(1)}</span>
                     </div>
                   </div>
-
-                  <p className="text-[11px] font-medium text-slate-700 dark:text-slate-300 mt-1 truncate">
-                    {item.title}
-                  </p>
-
-                  <div className="flex items-center justify-between text-[10px] font-mono text-slate-400 mt-2 pt-1 border-t border-slate-200/60 dark:border-slate-800/60">
-                    <span>Target: <strong className="text-slate-700 dark:text-slate-300">{item.asset}</strong></span>
-                    <span>Risk: <strong className="text-red-600 dark:text-red-400">{item.score.toFixed(1)}</strong></span>
-                  </div>
-                </div>
-              );
-            })}
+                );
+              })
+            )}
           </div>
         </div>
 
-        {/* Center/Right: Truly Dynamic Attack Correlation Radial Graph (7 Cols) */}
-        <div className="lg:col-span-7 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xs space-y-4">
+        {/* Right Column: Radial Graph (7 Cols) */}
+        <div className="lg:col-span-7 bg-white dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-3">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
             <div className="flex items-center gap-2">
               <Network className="w-4 h-4 text-purple-600 dark:text-purple-400" />
@@ -705,7 +693,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                   Attack Correlation Radial Graph (Interactive)
                 </h4>
                 <p className="text-[10px] text-slate-400">
-                  Live topology for <strong className="text-blue-600 dark:text-cyan-400 font-mono">{activeThreat.id}</strong>. Click any node to inspect.
+                  Live topology for <strong className="text-blue-600 dark:text-cyan-400 font-mono">{activeThreat?.id || 'No Threat'}</strong>. Click any node to inspect.
                 </p>
               </div>
             </div>
@@ -720,86 +708,86 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             </div>
           </div>
 
-          {/* SVG Radial Graph Visual Canvas */}
+          {/* Radial Graph Visual Canvas */}
           <div className="relative bg-slate-50/70 dark:bg-slate-950/60 rounded-xl p-4 border border-slate-200 dark:border-slate-800 min-h-[340px] flex items-center justify-center overflow-hidden">
-            <svg viewBox="0 0 460 300" className="w-full max-w-[460px] h-72">
-              {/* Connecting lines from center to satellite nodes */}
-              <line x1="230" y1="150" x2="80" y2="70" stroke="#94A3B8" strokeWidth="1.5" strokeDasharray="3 3" />
-              <line x1="230" y1="150" x2="380" y2="70" stroke="#94A3B8" strokeWidth="1.5" strokeDasharray="3 3" />
-              <line x1="230" y1="150" x2="60" y2="180" stroke="#94A3B8" strokeWidth="1.5" strokeDasharray="3 3" />
-              <line x1="230" y1="150" x2="400" y2="180" stroke="#94A3B8" strokeWidth="1.5" strokeDasharray="3 3" />
-              <line x1="230" y1="150" x2="140" y2="250" stroke="#94A3B8" strokeWidth="1.5" strokeDasharray="3 3" />
-              <line x1="230" y1="150" x2="320" y2="250" stroke="#94A3B8" strokeWidth="1.5" strokeDasharray="3 3" />
+            {activeThreat ? (
+              <svg viewBox="0 0 460 300" className="w-full max-w-[460px] h-72">
+                <line x1="230" y1="150" x2="80" y2="70" stroke="#94A3B8" strokeWidth="1.5" strokeDasharray="3 3" />
+                <line x1="230" y1="150" x2="380" y2="70" stroke="#94A3B8" strokeWidth="1.5" strokeDasharray="3 3" />
+                <line x1="230" y1="150" x2="60" y2="180" stroke="#94A3B8" strokeWidth="1.5" strokeDasharray="3 3" />
+                <line x1="230" y1="150" x2="400" y2="180" stroke="#94A3B8" strokeWidth="1.5" strokeDasharray="3 3" />
+                <line x1="230" y1="150" x2="140" y2="250" stroke="#94A3B8" strokeWidth="1.5" strokeDasharray="3 3" />
+                <line x1="230" y1="150" x2="320" y2="250" stroke="#94A3B8" strokeWidth="1.5" strokeDasharray="3 3" />
 
-              {/* Central Threat Node */}
-              <g className="cursor-pointer" onClick={() => setInspectedNode('THREAT')}>
-                <circle cx="230" cy="150" r="32" fill="#EF4444" opacity="0.2" className="animate-ping" />
-                <circle cx="230" cy="150" r="26" fill="#EF4444" stroke="#DC2626" strokeWidth="2" />
-                <text x="230" y="148" textAnchor="middle" fill="#FFFFFF" fontSize="9" fontWeight="bold">
-                  {activeThreat.id.length > 13 ? activeThreat.id.slice(0, 11) + '..' : activeThreat.id}
-                </text>
-                <text x="230" y="160" textAnchor="middle" fill="#FFFFFF" fontSize="8" opacity="0.9">
-                  {activeThreat.score.toFixed(1)}
-                </text>
-              </g>
+                {/* Central Threat Node */}
+                <g className="cursor-pointer" onClick={() => setInspectedNode('THREAT')}>
+                  <circle cx="230" cy="150" r="32" fill="#EF4444" opacity="0.2" className="animate-ping" />
+                  <circle cx="230" cy="150" r="26" fill="#EF4444" stroke="#DC2626" strokeWidth="2" />
+                  <text x="230" y="148" textAnchor="middle" fill="#FFFFFF" fontSize="9" fontWeight="bold">
+                    {activeThreat.id.length > 13 ? activeThreat.id.slice(0, 11) + '..' : activeThreat.id}
+                  </text>
+                  <text x="230" y="160" textAnchor="middle" fill="#FFFFFF" fontSize="8" opacity="0.9">
+                    {activeThreat.score.toFixed(1)}
+                  </text>
+                </g>
 
-              {/* Node 1: Target Asset (Blue) */}
-              <g className="cursor-pointer" onClick={() => setInspectedNode('ASSET')}>
-                <circle cx="80" cy="70" r="18" fill="#3B82F6" stroke="#2563EB" strokeWidth="1.5" />
-                <text x="80" y="74" textAnchor="middle" fill="#FFFFFF" fontSize="8" fontWeight="bold">Asset</text>
-                <text x="80" y="98" textAnchor="middle" fill="#64748B" fontSize="8" fontWeight="500">
-                  {activeThreat.asset.split('.')[0]}
-                </text>
-              </g>
+                {/* Satellite Nodes */}
+                <g className="cursor-pointer" onClick={() => setInspectedNode('ASSET')}>
+                  <circle cx="80" cy="70" r="18" fill="#3B82F6" stroke="#2563EB" strokeWidth="1.5" />
+                  <text x="80" y="74" textAnchor="middle" fill="#FFFFFF" fontSize="8" fontWeight="bold">Asset</text>
+                  <text x="80" y="98" textAnchor="middle" fill="#64748B" fontSize="8" fontWeight="500">
+                    {activeThreat.asset.split('.')[0]}
+                  </text>
+                </g>
 
-              {/* Node 2: Intel Source (Amber) */}
-              <g className="cursor-pointer" onClick={() => setInspectedNode('INTEL')}>
-                <circle cx="380" cy="70" r="18" fill="#F59E0B" stroke="#D97706" strokeWidth="1.5" />
-                <text x="380" y="74" textAnchor="middle" fill="#FFFFFF" fontSize="8" fontWeight="bold">Source</text>
-                <text x="380" y="98" textAnchor="middle" fill="#64748B" fontSize="8" fontWeight="500">
-                  {activeThreat.src}
-                </text>
-              </g>
+                <g className="cursor-pointer" onClick={() => setInspectedNode('INTEL')}>
+                  <circle cx="380" cy="70" r="18" fill="#F59E0B" stroke="#D97706" strokeWidth="1.5" />
+                  <text x="380" y="74" textAnchor="middle" fill="#FFFFFF" fontSize="8" fontWeight="bold">Source</text>
+                  <text x="380" y="98" textAnchor="middle" fill="#64748B" fontSize="8" fontWeight="500">
+                    {activeThreat.src}
+                  </text>
+                </g>
 
-              {/* Node 3: Attacker IP (Rose) */}
-              <g className="cursor-pointer" onClick={() => setInspectedNode('IP')}>
-                <circle cx="60" cy="180" r="18" fill="#EC4899" stroke="#DB2777" strokeWidth="1.5" />
-                <text x="60" y="184" textAnchor="middle" fill="#FFFFFF" fontSize="8" fontWeight="bold">IP IOC</text>
-                <text x="60" y="208" textAnchor="middle" fill="#64748B" fontSize="8" fontWeight="500">
-                  {activeThreat.ip}
-                </text>
-              </g>
+                <g className="cursor-pointer" onClick={() => setInspectedNode('IP')}>
+                  <circle cx="60" cy="180" r="18" fill="#EC4899" stroke="#DB2777" strokeWidth="1.5" />
+                  <text x="60" y="184" textAnchor="middle" fill="#FFFFFF" fontSize="8" fontWeight="bold">IP IOC</text>
+                  <text x="60" y="208" textAnchor="middle" fill="#64748B" fontSize="8" fontWeight="500">
+                    {activeThreat.ip}
+                  </text>
+                </g>
 
-              {/* Node 4: Policy Rule (Emerald) */}
-              <g className="cursor-pointer" onClick={() => setInspectedNode('POLICY')}>
-                <circle cx="400" cy="180" r="18" fill="#10B981" stroke="#059669" strokeWidth="1.5" />
-                <text x="400" y="184" textAnchor="middle" fill="#FFFFFF" fontSize="8" fontWeight="bold">Policy</text>
-                <text x="400" y="208" textAnchor="middle" fill="#64748B" fontSize="8" fontWeight="500">
-                  {activeThreat.policy.split('_')[0]}
-                </text>
-              </g>
+                <g className="cursor-pointer" onClick={() => setInspectedNode('POLICY')}>
+                  <circle cx="400" cy="180" r="18" fill="#10B981" stroke="#059669" strokeWidth="1.5" />
+                  <text x="400" y="184" textAnchor="middle" fill="#FFFFFF" fontSize="8" fontWeight="bold">Policy</text>
+                  <text x="400" y="208" textAnchor="middle" fill="#64748B" fontSize="8" fontWeight="500">
+                    {activeThreat.policy.split('_')[0]}
+                  </text>
+                </g>
 
-              {/* Node 5: Vector / Product (Cyan) */}
-              <g className="cursor-pointer" onClick={() => setInspectedNode('VECTOR')}>
-                <circle cx="140" cy="250" r="18" fill="#06B6D4" stroke="#0891B2" strokeWidth="1.5" />
-                <text x="140" y="254" textAnchor="middle" fill="#FFFFFF" fontSize="8" fontWeight="bold">Product</text>
-                <text x="140" y="278" textAnchor="middle" fill="#64748B" fontSize="8" fontWeight="500">
-                  {activeThreat.product}
-                </text>
-              </g>
+                <g className="cursor-pointer" onClick={() => setInspectedNode('VECTOR')}>
+                  <circle cx="140" cy="250" r="18" fill="#06B6D4" stroke="#0891B2" strokeWidth="1.5" />
+                  <text x="140" y="254" textAnchor="middle" fill="#FFFFFF" fontSize="8" fontWeight="bold">Product</text>
+                  <text x="140" y="278" textAnchor="middle" fill="#64748B" fontSize="8" fontWeight="500">
+                    {activeThreat.product}
+                  </text>
+                </g>
 
-              {/* Node 6: State Machine Status (Purple) */}
-              <g className="cursor-pointer" onClick={() => setInspectedNode('STATUS')}>
-                <circle cx="320" cy="250" r="18" fill="#8B5CF6" stroke="#7C3AED" strokeWidth="1.5" />
-                <text x="320" y="254" textAnchor="middle" fill="#FFFFFF" fontSize="8" fontWeight="bold">Status</text>
-                <text x="320" y="278" textAnchor="middle" fill="#64748B" fontSize="8" fontWeight="500">
-                  {activeThreat.status}
-                </text>
-              </g>
-            </svg>
+                <g className="cursor-pointer" onClick={() => setInspectedNode('STATUS')}>
+                  <circle cx="320" cy="250" r="18" fill="#8B5CF6" stroke="#7C3AED" strokeWidth="1.5" />
+                  <text x="320" y="254" textAnchor="middle" fill="#FFFFFF" fontSize="8" fontWeight="bold">Status</text>
+                  <text x="320" y="278" textAnchor="middle" fill="#64748B" fontSize="8" fontWeight="500">
+                    {activeThreat.status}
+                  </text>
+                </g>
+              </svg>
+            ) : (
+              <div className="text-center text-slate-400 text-xs">
+                No active threat topology to render.
+              </div>
+            )}
 
-            {/* Clicked Node Detail Card Overlay */}
-            {inspectedNode && (
+            {/* Inspect Overlay */}
+            {inspectedNode && activeThreat && (
               <div className="absolute top-3 right-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3.5 rounded-xl shadow-lg max-w-[210px] text-xs space-y-1.5 animate-in fade-in duration-150">
                 <div className="flex items-center justify-between">
                   <span className="font-bold text-[11px] text-slate-800 dark:text-slate-200">
@@ -826,7 +814,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
               Correlated against installed inventory
             </span>
 
-            <div className="flex gap-2">
+            {activeThreat && (
               <button
                 onClick={() => onSelectWarning(activeThreat.warningId)}
                 className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition-all shadow-xs flex items-center gap-1"
@@ -834,7 +822,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                 <span>Investigate Case</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </button>
-            </div>
+            )}
           </div>
         </div>
       </div>

@@ -65,3 +65,4 @@ def test_audit_trail_and_event_persistence():
         assert "dimensions" in audit.after_state
     finally:
         db.close()
+

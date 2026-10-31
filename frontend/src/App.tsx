@@ -29,6 +29,8 @@ export function App() {
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const [dataLoading, setDataLoading] = useState(false);
+  const [dataError, setDataError] = useState<string | null>(null);
 
   // Theme state: Light theme is DEFAULT per user preference
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
@@ -67,14 +69,22 @@ export function App() {
   }, []);
 
   const refreshData = async () => {
-    const [ov, w, a] = await Promise.all([
-      api.getOverview(),
-      api.getWarnings(),
-      api.getAssets()
-    ]);
-    setOverview(ov);
-    setWarnings(w);
-    setAssets(a);
+    setDataLoading(true);
+    setDataError(null);
+    try {
+      const [ov, w, a] = await Promise.all([
+        api.getOverview(),
+        api.getWarnings(),
+        api.getAssets()
+      ]);
+      setOverview(ov);
+      setWarnings(w);
+      setAssets(a);
+    } catch (err: any) {
+      setDataError(err.message || 'Failed to sync with SENTINEL GRID backend services');
+    } finally {
+      setDataLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -169,6 +179,9 @@ export function App() {
             <DashboardPage
               overview={overview}
               warnings={warnings}
+              loading={dataLoading}
+              error={dataError}
+              onRetry={refreshData}
               onNavigateToWarnings={() => setCurrentPage('warnings')}
               onNavigateToAttacks={() => setCurrentPage('attack-lab')}
               onNavigateToAssets={() => setCurrentPage('assets')}
@@ -185,7 +198,10 @@ export function App() {
             <WarningsPage
               warnings={warnings}
               selectedWarningId={selectedWarningId}
+              loading={dataLoading}
+              error={dataError}
               onRefresh={refreshData}
+              onOpenUpload={() => setIsUploadOpen(true)}
             />
           )}
 
@@ -194,11 +210,22 @@ export function App() {
           )}
 
           {currentPage === 'assets' && (
-            <AssetsPage assets={assets} />
+            <AssetsPage
+              assets={assets}
+              loading={dataLoading}
+              error={dataError}
+              onRefresh={refreshData}
+              onOpenUpload={() => setIsUploadOpen(true)}
+            />
           )}
 
           {currentPage === 'alerts' && (
-            <AlertsPage warnings={warnings} />
+            <AlertsPage
+              warnings={warnings}
+              loading={dataLoading}
+              error={dataError}
+              onRefresh={refreshData}
+            />
           )}
 
           {currentPage === 'audit' && (

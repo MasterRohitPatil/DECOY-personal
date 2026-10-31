@@ -26,12 +26,12 @@ def generate_executive_ai_brief(
         f"Keep it professional, high-impact, and under 90 words total."
     )
 
-    if key and not key.startswith("["):
+    if key and not key.startswith("[") and key.startswith("AIzaSy"):
         try:
             url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key={key}"
             payload = {"contents": [{"parts": [{"text": prompt}]}]}
             
-            with httpx.Client(timeout=4.0) as client:
+            with httpx.Client(timeout=2.5) as client:
                 res = client.post(url, json=payload)
                 if res.status_code == 200:
                     data = res.json()

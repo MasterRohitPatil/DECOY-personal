@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import {
   ShieldAlert, Server, FileText, CheckCircle, Zap,
-  Activity, ArrowRight, ShieldCheck, Eye, RefreshCw, AlertTriangle, Sparkles
+  Activity, ArrowRight, ShieldCheck, Eye, RefreshCw, AlertTriangle, Sparkles,
+  UploadCloud, CheckCircle2, Check
 } from 'lucide-react';
 import { WarningItem, WarningDetail } from '../types';
 import { RiskGauge } from '../components/RiskGauge';
@@ -13,17 +14,24 @@ import { api } from '../api';
 interface WarningsPageProps {
   warnings: WarningItem[];
   selectedWarningId?: string;
+  loading?: boolean;
+  error?: string | null;
   onRefresh: () => void;
+  onOpenUpload?: () => void;
 }
 
 export const WarningsPage: React.FC<WarningsPageProps> = ({
   warnings,
   selectedWarningId,
-  onRefresh
+  loading = false,
+  error = null,
+  onRefresh,
+  onOpenUpload
 }) => {
-  const [selectedId, setSelectedId] = useState<string>(selectedWarningId || warnings[0]?.id || 'W-2026-001');
+  const [selectedId, setSelectedId] = useState<string>(selectedWarningId || warnings[0]?.id || '');
   const [detail, setDetail] = useState<WarningDetail | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
   const [escalating, setEscalating] = useState(false);
   const [approving, setApproving] = useState(false);
   const [approvedState, setApprovedState] = useState(false);
@@ -33,26 +41,35 @@ export const WarningsPage: React.FC<WarningsPageProps> = ({
   // Stepper state
   const [pipelineStage, setPipelineStage] = useState(0);
   const [pipelineLabel, setPipelineLabel] = useState('Pipeline Idle');
+  const [ingesting, setIngesting] = useState(false);
 
   useEffect(() => {
     if (selectedWarningId) {
       setSelectedId(selectedWarningId);
+    } else if (warnings.length > 0 && !selectedId) {
+      setSelectedId(warnings[0].id);
     }
-  }, [selectedWarningId]);
+  }, [selectedWarningId, warnings]);
+
+  const loadDetail = async (id: string) => {
+    if (!id) return;
+    setLoadingDetail(true);
+    setDetailError(null);
+    setAiBrief(null);
+    try {
+      const res = await api.getWarningDetail(id);
+      setDetail(res);
+    } catch (e: any) {
+      setDetailError(e.message || 'Failed to fetch warning details');
+    } finally {
+      setLoadingDetail(false);
+    }
+  };
 
   useEffect(() => {
-    const loadDetail = async () => {
-      if (!selectedId) return;
-      setLoadingDetail(true);
-      setAiBrief(null);
-      try {
-        const res = await api.getWarningDetail(selectedId);
-        setDetail(res);
-      } finally {
-        setLoadingDetail(false);
-      }
-    };
-    loadDetail();
+    if (selectedId) {
+      loadDetail(selectedId);
+    }
   }, [selectedId]);
 
   const handleGenerateAiBrief = async () => {
@@ -61,7 +78,7 @@ export const WarningsPage: React.FC<WarningsPageProps> = ({
     try {
       const res = await api.getAiBrief(detail.id);
       setAiBrief(res);
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
     } finally {
       setLoadingAi(false);
@@ -69,6 +86,7 @@ export const WarningsPage: React.FC<WarningsPageProps> = ({
   };
 
   const handleInjectAdvisory = () => {
+    setIngesting(true);
     setPipelineStage(1);
     setPipelineLabel('1. Ingesting advisory from NVD feed...');
 
@@ -90,6 +108,7 @@ export const WarningsPage: React.FC<WarningsPageProps> = ({
     setTimeout(() => {
       setPipelineStage(5);
       setPipelineLabel('5. Early Warning Generated: Priority Calculated.');
+      setIngesting(false);
       onRefresh();
     }, 2400);
 
@@ -135,8 +154,55 @@ export const WarningsPage: React.FC<WarningsPageProps> = ({
 
   const currentIdx = approvedState ? 6 : Math.max(statuses.indexOf(detail?.status || 'TRIAGED'), 1);
 
+  // 1. LOADING SKELETON
+  if (loading && warnings.length === 0) {
+    return (
+      <div className="p-6 lg:p-8 space-y-6 max-w-7xl mx-auto animate-pulse">
+        <div className="bg-white dark:bg-[#0B0F19] p-6 rounded-2xl border border-slate-200 dark:border-slate-800 flex justify-between items-center">
+          <div className="space-y-2">
+            <div className="h-4 w-48 bg-slate-200 dark:bg-slate-800 rounded"></div>
+            <div className="h-6 w-72 bg-slate-200 dark:bg-slate-800 rounded"></div>
+          </div>
+          <div className="h-10 w-44 bg-slate-200 dark:bg-slate-800 rounded-xl"></div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          <div className="lg:col-span-5 bg-white dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 space-y-3">
+            {[1, 2, 3, 4].map(i => (
+              <div key={i} className="h-20 bg-slate-100 dark:bg-slate-900 rounded-xl"></div>
+            ))}
+          </div>
+          <div className="lg:col-span-7 bg-white dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 h-96">
+            <div className="h-6 w-48 bg-slate-200 dark:bg-slate-800 rounded mb-4"></div>
+            <div className="h-48 w-full bg-slate-100 dark:bg-slate-900 rounded-xl"></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-6 lg:p-8 space-y-6 max-w-7xl mx-auto transition-colors duration-200">
+      {/* Error state banner */}
+      {(error || detailError) && (
+        <div className="p-4 rounded-xl bg-red-50 dark:bg-red-950/60 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 text-xs flex items-center justify-between shadow-sm">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-red-500 shrink-0" />
+            <span><strong>Diagnostic:</strong> {error || detailError}</span>
+          </div>
+          <button
+            onClick={() => {
+              if (selectedId) loadDetail(selectedId);
+              onRefresh();
+            }}
+            className="px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            <span>Retry</span>
+          </button>
+        </div>
+      )}
+
       {/* Page Header & Live Ingestion Trigger */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-[#0B0F19] p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm transition-colors duration-200">
         <div>
@@ -147,17 +213,30 @@ export const WarningsPage: React.FC<WarningsPageProps> = ({
             Threat Intelligence & Exposure Matching
           </h1>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-2xl">
-            Advisories are normalized and matched against monitored software inventory using semantic versioning. Warnings are prioritized mathematically using transparent factors.
+            Advisories are normalized and matched against monitored software inventory using semantic versioning. Warnings are prioritized mathematically using Section 3.4 factors.
           </p>
         </div>
 
-        <button
-          onClick={handleInjectAdvisory}
-          className="px-4 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs flex items-center gap-2 shadow-sm transition-all self-start md:self-auto shrink-0"
-        >
-          <Zap className="w-4 h-4 text-white" />
-          Simulate Advisory Ingestion (SSE)
-        </button>
+        <div className="flex items-center gap-2">
+          {onOpenUpload && (
+            <button
+              onClick={onOpenUpload}
+              className="px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs flex items-center gap-1.5 border border-slate-200 dark:border-slate-700 transition-all shadow-xs"
+            >
+              <UploadCloud className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+              <span>Upload CSV</span>
+            </button>
+          )}
+
+          <button
+            onClick={handleInjectAdvisory}
+            disabled={ingesting}
+            className="px-4 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs flex items-center gap-2 shadow-sm transition-all self-start md:self-auto shrink-0 disabled:opacity-50"
+          >
+            <Zap className={`w-4 h-4 ${ingesting ? 'animate-pulse text-amber-300' : 'text-white'}`} />
+            <span>{ingesting ? 'Injecting & Matching...' : 'Simulate Advisory Ingestion (SSE)'}</span>
+          </button>
+        </div>
       </div>
 
       {/* Pipeline Stepper */}
@@ -178,54 +257,78 @@ export const WarningsPage: React.FC<WarningsPageProps> = ({
           </div>
 
           <div className="divide-y divide-slate-100 dark:divide-slate-800/80 max-h-[750px] overflow-y-auto">
-            {warnings.map(w => {
-              const isSelected = w.id === selectedId;
-              return (
-                <div
-                  key={w.id}
-                  onClick={() => {
-                    setSelectedId(w.id);
-                    setApprovedState(false);
-                  }}
-                  className={`p-4 transition-all cursor-pointer flex items-start gap-3 ${
-                    isSelected
-                      ? 'bg-slate-50 dark:bg-slate-900 border-l-4 border-cyan-500'
-                      : 'hover:bg-slate-50/60 dark:hover:bg-slate-900/40 border-l-4 border-transparent'
-                  }`}
-                >
-                  <div className="text-center min-w-14">
-                    <span className={`block text-xl font-black font-mono ${
-                      w.band === 'CRITICAL' ? 'text-red-600 dark:text-red-400' : 'text-amber-600 dark:text-orange-400'
-                    }`}>
-                      {w.risk_score.toFixed(1)}
-                    </span>
-                    <span className={`text-[8px] uppercase font-bold px-1.5 py-0.5 rounded ${
-                      w.band === 'CRITICAL' ? 'bg-red-50 dark:bg-red-950 text-red-700 dark:text-red-300' : 'bg-amber-50 dark:bg-orange-950 text-amber-700 dark:text-orange-300'
-                    }`}>
-                      {w.band}
-                    </span>
-                  </div>
+            {warnings.length === 0 ? (
+              <div className="p-10 text-center space-y-3">
+                <ShieldCheck className="w-10 h-10 text-emerald-500 mx-auto" />
+                <h4 className="font-bold text-xs text-slate-900 dark:text-white">Zero Active Exposures</h4>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 max-w-xs mx-auto">
+                  No vulnerabilities currently match your installed software inventory.
+                </p>
+                {onOpenUpload && (
+                  <button
+                    onClick={onOpenUpload}
+                    className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-bold hover:bg-blue-500 shadow-xs"
+                  >
+                    Ingest Threat Feed (CSV)
+                  </button>
+                )}
+              </div>
+            ) : (
+              warnings.map(w => {
+                const isSelected = w.id === selectedId;
+                return (
+                  <div
+                    key={w.id}
+                    onClick={() => {
+                      setSelectedId(w.id);
+                      setApprovedState(false);
+                    }}
+                    className={`p-4 transition-all cursor-pointer flex items-start gap-3 ${
+                      isSelected
+                        ? 'bg-slate-50 dark:bg-slate-900 border-l-4 border-cyan-500'
+                        : 'hover:bg-slate-50/60 dark:hover:bg-slate-900/40 border-l-4 border-transparent'
+                    }`}
+                  >
+                    <div className="text-center min-w-14">
+                      <span className={`block text-xl font-black font-mono ${
+                        w.band === 'CRITICAL' ? 'text-red-600 dark:text-red-400' : 'text-amber-600 dark:text-orange-400'
+                      }`}>
+                        {w.risk_score.toFixed(1)}
+                      </span>
+                      <span className={`text-[8px] uppercase font-bold px-1.5 py-0.5 rounded ${
+                        w.band === 'CRITICAL' ? 'bg-red-50 dark:bg-red-950 text-red-700 dark:text-red-300' : 'bg-amber-50 dark:bg-orange-950 text-amber-700 dark:text-orange-300'
+                      }`}>
+                        {w.band}
+                      </span>
+                    </div>
 
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-mono text-cyan-600 dark:text-cyan-400 font-bold">{w.id}</span>
-                      <h4 className="font-bold text-slate-900 dark:text-white text-xs truncate">{w.title}</h4>
-                    </div>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-1">{w.brief_summary}</p>
-                    <div className="flex items-center gap-3 mt-1.5 text-[10px] font-mono text-slate-400">
-                      <span>Target: <strong className="text-slate-700 dark:text-slate-300">{w.target_hostname.split('.')[0]}</strong></span>
-                      <span>Confidence: <strong className="text-slate-700 dark:text-slate-300">{(w.confidence * 100).toFixed(0)}%</strong></span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-mono text-cyan-600 dark:text-cyan-400 font-bold">{w.id}</span>
+                        <h4 className="font-bold text-slate-900 dark:text-white text-xs truncate">{w.title}</h4>
+                      </div>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-1">{w.brief_summary}</p>
+                      <div className="flex items-center gap-3 mt-1.5 text-[10px] font-mono text-slate-400">
+                        <span>Target: <strong className="text-slate-700 dark:text-slate-300">{w.target_hostname.split('.')[0]}</strong></span>
+                        <span>Confidence: <strong className="text-slate-700 dark:text-slate-300">{(w.confidence * 100).toFixed(0)}%</strong></span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })
+            )}
           </div>
         </div>
 
         {/* Right Column: Forensic Warning Detail & Scorer (7 Cols) */}
         <div className="lg:col-span-7 space-y-6">
-          {detail ? (
+          {loadingDetail ? (
+            <div className="bg-white dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 rounded-2xl p-8 shadow-sm text-center space-y-3 animate-pulse">
+              <div className="h-6 w-48 bg-slate-200 dark:bg-slate-800 rounded mx-auto"></div>
+              <div className="h-4 w-72 bg-slate-200 dark:bg-slate-800 rounded mx-auto"></div>
+              <div className="h-32 bg-slate-100 dark:bg-slate-900 rounded-xl mt-4"></div>
+            </div>
+          ) : detail ? (
             <div className="bg-white dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm space-y-6">
               {/* Detail Top Header */}
               <div className="flex justify-between items-start border-b border-slate-100 dark:border-slate-800 pb-4">
@@ -250,10 +353,10 @@ export const WarningsPage: React.FC<WarningsPageProps> = ({
                 <button
                   onClick={handleGenerateAiBrief}
                   disabled={loadingAi}
-                  className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-md shrink-0 transition-all"
+                  className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-md shrink-0 transition-all disabled:opacity-50"
                 >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  {loadingAi ? 'Analyzing...' : 'Generate AI Brief (Gemini)'}
+                  <Sparkles className={`w-3.5 h-3.5 ${loadingAi ? 'animate-spin' : ''}`} />
+                  <span>{loadingAi ? 'Analyzing...' : 'Generate AI Brief'}</span>
                 </button>
               </div>
 
@@ -284,10 +387,10 @@ export const WarningsPage: React.FC<WarningsPageProps> = ({
                   <button
                     onClick={handleKevEscalate}
                     disabled={escalating || detail.risk_score >= 90}
-                    className="mt-3 w-full py-2 px-3 bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-500 hover:to-red-500 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-md transition-all"
+                    className="mt-3 w-full py-2 px-3 bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-500 hover:to-red-500 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-md transition-all disabled:opacity-60"
                   >
                     <Zap className="w-3.5 h-3.5" />
-                    {escalating ? 'Escalating...' : detail.risk_score >= 90 ? 'Listed in CISA KEV (93.4 Critical)' : 'Simulate: Add to CISA KEV'}
+                    <span>{escalating ? 'Escalating to KEV...' : detail.risk_score >= 90 ? 'Listed in CISA KEV (93.4 Critical)' : 'Simulate: Add to CISA KEV'}</span>
                   </button>
                 </div>
 
@@ -388,13 +491,25 @@ export const WarningsPage: React.FC<WarningsPageProps> = ({
                   <button
                     onClick={handleApprove}
                     disabled={approving || approvedState}
-                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm ${
+                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 ${
                       approvedState
                         ? 'bg-emerald-600 text-white cursor-default'
                         : 'bg-cyan-600 hover:bg-cyan-500 text-white'
                     }`}
                   >
-                    {approving ? 'Applying Patch...' : approvedState ? '✓ Simulated Patch Deployed' : 'SecOps Lead: Approve Simulated Patch'}
+                    {approving ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        <span>Applying Patch...</span>
+                      </>
+                    ) : approvedState ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-white" />
+                        <span>Simulated Patch Deployed ✓</span>
+                      </>
+                    ) : (
+                      'SecOps Lead: Approve Simulated Patch'
+                    )}
                   </button>
                 </div>
               </div>

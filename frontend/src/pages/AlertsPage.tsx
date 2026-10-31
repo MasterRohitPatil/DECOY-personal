@@ -9,9 +9,17 @@ import { WarningItem, SmtpStatusResponse, SendEmailResponse } from '../types';
 
 interface AlertsPageProps {
   warnings?: WarningItem[];
+  loading?: boolean;
+  error?: string | null;
+  onRefresh?: () => void;
 }
 
-export const AlertsPage: React.FC<AlertsPageProps> = ({ warnings = [] }) => {
+export const AlertsPage: React.FC<AlertsPageProps> = ({
+  warnings = [],
+  loading = false,
+  error = null,
+  onRefresh
+}) => {
   // Target inputs
   const [phoneNumber, setPhoneNumber] = useState('+91 98765 43210');
   const [targetEmail, setTargetEmail] = useState('');
