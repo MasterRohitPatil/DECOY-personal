@@ -376,8 +376,12 @@ async def escalate_to_kev(cve_id: str, db: Session = Depends(get_db)):
 
 # 7. Live Attack Simulation (Mentor Requirement)
 @router.post("/demo/attack/{attack_type}")
-async def trigger_live_attack(attack_type: str, db: Session = Depends(get_db)):
-    result = simulate_attack(db, attack_type)
+async def trigger_live_attack(
+    attack_type: str,
+    target_hostname: Optional[str] = Query(None),
+    db: Session = Depends(get_db)
+):
+    result = simulate_attack(db, attack_type, target_hostname=target_hostname)
     
     # Broadcast to SSE
     await broadcast_sse_event("LIVE_ATTACK", result)

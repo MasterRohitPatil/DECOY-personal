@@ -1,7 +1,7 @@
 import {
   OverviewData, WarningItem, WarningDetail, AssetItem,
   AuditResponse, SmtpStatusResponse, SendEmailPayload, SendEmailResponse,
-  UserProfile, AuthResponse, DemoAccountInfo
+  UserProfile, AuthResponse, DemoAccountInfo, AttackResponse
 } from './types';
 
 const API_BASE = 'http://localhost:8000/api';
@@ -235,16 +235,19 @@ export const api = {
     }
   },
 
-  async triggerAttack(attackType: string): Promise<any> {
-    try {
-      const res = await fetch(`${API_BASE}/demo/attack/${attackType}`, { method: 'POST' });
-      return await res.json();
-    } catch {
-      return {
-        status: 'ATTACK_CORRELATED',
-        result: { warning_id: 'W-ATK-001', score: 91.2, severity: 'CRITICAL', target_hostname: 'auth-srv-01.prod.sentinel' }
-      };
+  async triggerAttack(attackType: string, targetHostname?: string): Promise<AttackResponse> {
+    const url = targetHostname
+      ? `${API_BASE}/demo/attack/${attackType}?target_hostname=${encodeURIComponent(targetHostname)}`
+      : `${API_BASE}/demo/attack/${attackType}`;
+    const res = await fetch(url, { 
+      method: 'POST',
+      headers: getAuthHeaders()
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }));
+      throw new Error(err.detail || `Attack simulation failed with status ${res.status}`);
     }
+    return await res.json();
   },
 
   async blockIp(ip: string): Promise<any> {

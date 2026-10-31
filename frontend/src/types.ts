@@ -166,5 +166,54 @@ export interface DemoAccountInfo {
   description: string;
 }
 
+export interface KillChainStep {
+  step: number;
+  phase: string;
+  node: string;
+  entity: string;
+  detail: string;
+  status: string;
+  mitre_id: string;
+}
+
+export interface AttackResult {
+  event_id: string;
+  warning_id: string;
+  attack_type: string;
+  source_ip: string;
+  target_hostname: string;
+  target_asset: {
+    id: string;
+    hostname: string;
+    product: string;
+    version: string;
+    environment: string;
+    internet_facing: boolean;
+    criticality: number;
+  };
+  exposure_status: string;
+  is_software_applicable: boolean;
+  active_threat_cve: string | null;
+  severity: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
+  score: number;
+  dimensions: Dimensions;
+  rules_fired: string[];
+  kill_chain: KillChainStep[];
+  raw_payload: string;
+}
+
+export interface AttackResponse {
+  status: string;
+  result: AttackResult;
+  alerts: {
+    whatsapp: string;
+    email: {
+      subject: string;
+      to: string;
+      body: string;
+    };
+  };
+}
+
 
 
