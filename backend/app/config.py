@@ -41,6 +41,11 @@ class Settings(BaseSettings):
     SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD", "")
     SMTP_FROM: str = os.getenv("SMTP_FROM", "")
 
+    # JWT Authentication
+    JWT_SECRET: str = os.getenv("JWT_SECRET", "sentinel-grid-super-secret-jwt-key-2026-hackathon-national-threat-system-security")
+    JWT_ALGORITHM: str = "HS256"
+    JWT_EXPIRATION_HOURS: int = 48
+
     @property
     def cors_origins_list(self) -> list[str]:
         return [origin.strip() for origin in self.CORS_ORIGINS.split(",") if origin.strip()]

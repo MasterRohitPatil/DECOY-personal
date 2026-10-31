@@ -1,9 +1,9 @@
 import React from 'react';
 import {
   RefreshCw, BookOpen, ExternalLink, ShieldCheck,
-  Sun, Moon, Search, Bell, User, Sparkles, UploadCloud
+  Sun, Moon, Search, Bell, User, Sparkles, UploadCloud, LogOut
 } from 'lucide-react';
-import { OverviewData } from '../types';
+import { OverviewData, UserProfile } from '../types';
 
 interface NavbarProps {
   currentPageTitle: string;
@@ -14,6 +14,8 @@ interface NavbarProps {
   resetting: boolean;
   theme?: 'light' | 'dark';
   onToggleTheme?: () => void;
+  currentUser?: UserProfile | null;
+  onLogout?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -24,8 +26,14 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenUpload,
   resetting,
   theme = 'light',
-  onToggleTheme
+  onToggleTheme,
+  currentUser,
+  onLogout
 }) => {
+  const getInitials = (name?: string) => {
+    if (!name) return 'SO';
+    return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+  };
   return (
     <header className="h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-6 flex items-center justify-between shrink-0 select-none transition-colors duration-200">
       {/* Left: Page Title & Search Bar */}
@@ -109,17 +117,27 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         {/* Active Session Indicator */}
         <div className="flex items-center gap-2 pl-2 border-l border-slate-200 dark:border-slate-800">
-          <div className="w-7 h-7 rounded-full bg-blue-600 text-white font-black text-xs flex items-center justify-center shadow-xs">
-            SA
+          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-600 to-cyan-600 text-white font-black text-xs flex items-center justify-center shadow-xs">
+            {getInitials(currentUser?.full_name)}
           </div>
           <div className="hidden lg:block text-left">
             <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block leading-tight">
-              SecOps Analyst
+              {currentUser?.full_name || 'SecOps Analyst'}
             </span>
-            <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold block leading-tight">
-              Active Session
+            <span className="text-[10px] text-cyan-600 dark:text-cyan-400 font-mono font-bold block leading-tight">
+              {currentUser?.role || 'SECOPS_ANALYST'}
             </span>
           </div>
+
+          {onLogout && (
+            <button
+              onClick={onLogout}
+              title="Sign Out of Session"
+              className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors ml-1"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
+          )}
         </div>
       </div>
     </header>

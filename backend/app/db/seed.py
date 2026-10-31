@@ -4,8 +4,48 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 from app.models.schema import (
     Asset, Threat, Exposure, Warning, EvidenceLink,
-    RelationshipEdges, Playbook, AuditLog, SecurityEvent
+    RelationshipEdges, Playbook, AuditLog, SecurityEvent, UserAccount
 )
+from app.services.auth import hash_password
+
+DEMO_ACCOUNTS = [
+    {
+        "email": "ciso@sentinelgrid.gov.in",
+        "password": "Sentinel@2026!",
+        "full_name": "Dr. Arvind Rao",
+        "role": "CISO_ADMIN",
+        "organization": "National Cyber Security Coordinator",
+    },
+    {
+        "email": "analyst@sentinelgrid.gov.in",
+        "password": "Sentinel@2026!",
+        "full_name": "Vikram Malhotra",
+        "role": "SECOPS_ANALYST",
+        "organization": "CERT-In Sectoral Triage",
+    },
+    {
+        "email": "researcher@sentinelgrid.gov.in",
+        "password": "Sentinel@2026!",
+        "full_name": "Ananya Deshmukh",
+        "role": "THREAT_RESEARCHER",
+        "organization": "Critical Tech Defense Labs",
+    },
+]
+
+def seed_users(db: Session):
+    """Ensure standard demo accounts exist with bcrypt-hashed passwords."""
+    for acc in DEMO_ACCOUNTS:
+        existing = db.query(UserAccount).filter(UserAccount.email == acc["email"]).first()
+        if not existing:
+            user = UserAccount(
+                email=acc["email"],
+                hashed_password=hash_password(acc["password"]),
+                full_name=acc["full_name"],
+                role=acc["role"],
+                organization=acc["organization"]
+            )
+            db.add(user)
+    db.commit()
 
 def current_time():
     return datetime.now(timezone.utc)
@@ -243,6 +283,9 @@ def seed_database(db: Session) -> dict:
         simulated=True
     ))
     db.commit()
+
+    # Seed demo users
+    seed_users(db)
 
     elapsed = time.time() - start_time
     return {

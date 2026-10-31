@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { api } from './api';
-import { OverviewData, WarningItem, AssetItem } from './types';
+import { api, authStorage } from './api';
+import { OverviewData, WarningItem, AssetItem, UserProfile } from './types';
 import { Sidebar } from './components/Sidebar';
 import { Navbar } from './components/Navbar';
 import { GuideModal } from './components/GuideModal';
 import { CsvUploadModal } from './components/CsvUploadModal';
+import { LandingPage } from './components/LandingPage';
+import { ShieldAlert, Loader2 } from 'lucide-react';
 
 // Pages
 import { DashboardPage } from './pages/DashboardPage';
@@ -15,6 +17,9 @@ import { AlertsPage } from './pages/AlertsPage';
 import { AuditPage } from './pages/AuditPage';
 
 export function App() {
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => authStorage.getUser());
+  const [isAuthChecking, setIsAuthChecking] = useState(true);
+
   const [currentPage, setCurrentPage] = useState<string>('dashboard');
   const [overview, setOverview] = useState<OverviewData | null>(null);
   const [warnings, setWarnings] = useState<WarningItem[]>([]);
@@ -43,6 +48,24 @@ export function App() {
     setTheme(prev => (prev === 'light' ? 'dark' : 'light'));
   };
 
+  // Verify auth session on load
+  useEffect(() => {
+    let isMounted = true;
+    api.getCurrentUser()
+      .then(user => {
+        if (isMounted) {
+          setCurrentUser(user);
+          setIsAuthChecking(false);
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setIsAuthChecking(false);
+        }
+      });
+    return () => { isMounted = false; };
+  }, []);
+
   const refreshData = async () => {
     const [ov, w, a] = await Promise.all([
       api.getOverview(),
@@ -55,8 +78,10 @@ export function App() {
   };
 
   useEffect(() => {
-    refreshData();
-  }, []);
+    if (currentUser) {
+      refreshData();
+    }
+  }, [currentUser]);
 
   const handleReset = async () => {
     setResetting(true);
@@ -67,6 +92,34 @@ export function App() {
       setResetting(false);
     }
   };
+
+  const handleLogout = () => {
+    api.logout();
+    setCurrentUser(null);
+  };
+
+  if (isAuthChecking) {
+    return (
+      <div className="h-screen w-screen bg-slate-950 flex flex-col items-center justify-center text-slate-300">
+        <Loader2 className="w-8 h-8 animate-spin text-cyan-400 mb-4" />
+        <p className="text-xs font-mono text-slate-400">Verifying cryptographically signed session...</p>
+      </div>
+    );
+  }
+
+  // If not authenticated, render minimal landing page with judge quick-demo & real login/register
+  if (!currentUser) {
+    return (
+      <LandingPage
+        onLoginSuccess={(user) => {
+          setCurrentUser(user);
+          refreshData();
+        }}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+      />
+    );
+  }
 
   const getPageTitle = () => {
     switch (currentPage) {
@@ -106,6 +159,8 @@ export function App() {
           resetting={resetting}
           theme={theme}
           onToggleTheme={toggleTheme}
+          currentUser={currentUser}
+          onLogout={handleLogout}
         />
 
         {/* Page Content View Area */}

@@ -177,3 +177,15 @@ class Playbook(Base):
     title = Column(String(256), nullable=False)
     steps = Column(JSON, nullable=False)  # list of step strings
 
+class UserAccount(Base):
+    __tablename__ = "user_account"
+
+    id = Column(String(64), primary_key=True, default=generate_uuid)
+    email = Column(String(128), unique=True, nullable=False, index=True)
+    hashed_password = Column(String(256), nullable=False)
+    full_name = Column(String(128), nullable=False)
+    role = Column(String(64), default="SECOPS_ANALYST")  # CISO_ADMIN, SECOPS_ANALYST, THREAT_RESEARCHER
+    organization = Column(String(128), default="National Cyber Coordination Centre (NCCC)")
+    created_at = Column(DateTime(timezone=True), default=current_time)
+
+

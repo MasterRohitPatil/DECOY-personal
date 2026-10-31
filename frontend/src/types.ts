@@ -142,4 +142,29 @@ export interface SendEmailResponse {
   subject: string;
 }
 
+export interface UserProfile {
+  id: string;
+  email: string;
+  full_name: string;
+  role: 'CISO_ADMIN' | 'SECOPS_ANALYST' | 'THREAT_RESEARCHER' | string;
+  organization: string;
+}
+
+export interface AuthResponse {
+  access_token: string;
+  token_type: string;
+  user: UserProfile;
+}
+
+export interface DemoAccountInfo {
+  email: string;
+  password: string;
+  full_name: string;
+  role: string;
+  role_label: string;
+  organization: string;
+  description: string;
+}
+
+
 

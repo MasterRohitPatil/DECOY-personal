@@ -1,9 +1,47 @@
 import {
   OverviewData, WarningItem, WarningDetail, AssetItem,
-  AuditResponse, SmtpStatusResponse, SendEmailPayload, SendEmailResponse
+  AuditResponse, SmtpStatusResponse, SendEmailPayload, SendEmailResponse,
+  UserProfile, AuthResponse, DemoAccountInfo
 } from './types';
 
 const API_BASE = 'http://localhost:8000/api';
+
+const TOKEN_KEY = 'sentinel_jwt_token';
+const USER_KEY = 'sentinel_user';
+
+export const authStorage = {
+  getToken(): string | null {
+    return localStorage.getItem(TOKEN_KEY);
+  },
+  setSession(token: string, user: UserProfile) {
+    localStorage.setItem(TOKEN_KEY, token);
+    localStorage.setItem(USER_KEY, JSON.stringify(user));
+  },
+  getUser(): UserProfile | null {
+    const raw = localStorage.getItem(USER_KEY);
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  },
+  clearSession() {
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(USER_KEY);
+  }
+};
+
+function getAuthHeaders(): Record<string, string> {
+  const token = authStorage.getToken();
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json'
+  };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  return headers;
+}
 
 // Fallback baseline data if API is loading or offline
 const MOCK_OVERVIEW: OverviewData = {
@@ -298,7 +336,7 @@ CVE-2024-3094,XZ Utils Malicious Backdoor RCE,xz-utils,>=5.6.0 <=5.6.1,10.0,5,0.
           {
             id: 'audit-01',
             ts: new Date().toISOString(),
-            actor: 'Rohit Patil (Senior Analyst)',
+            actor: 'SecOps Automated Engine',
             action: 'FIREWALL_IP_BLOCK',
             object: '185.220.101.5',
             before_state: { status: 'ACTIVE_BREACH', score: 98.2 },
@@ -309,7 +347,7 @@ CVE-2024-3094,XZ Utils Malicious Backdoor RCE,xz-utils,>=5.6.0 <=5.6.1,10.0,5,0.
           {
             id: 'audit-02',
             ts: new Date(Date.now() - 300000).toISOString(),
-            actor: 'Alice Zhang (Junior Analyst)',
+            actor: 'National Threat Ingestion Pipeline',
             action: 'CVSS_TRIAGE_VERIFIED',
             object: 'CVE-2024-3094',
             before_state: { status: 'NEW' },
@@ -323,7 +361,7 @@ CVE-2024-3094,XZ Utils Malicious Backdoor RCE,xz-utils,>=5.6.0 <=5.6.1,10.0,5,0.
   },
 
   async getSmtpStatus(): Promise<SmtpStatusResponse> {
-    const res = await fetch(`${API_BASE}/alerts/smtp-status`);
+    const res = await fetch(`${API_BASE}/alerts/smtp-status`, { headers: getAuthHeaders() });
     if (!res.ok) throw new Error('Failed to query SMTP status');
     return await res.json();
   },
@@ -331,7 +369,7 @@ CVE-2024-3094,XZ Utils Malicious Backdoor RCE,xz-utils,>=5.6.0 <=5.6.1,10.0,5,0.
   async sendRealEmail(payload: SendEmailPayload): Promise<SendEmailResponse> {
     const res = await fetch(`${API_BASE}/alerts/send-email`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(),
       body: JSON.stringify(payload)
     });
     if (!res.ok) {
@@ -344,11 +382,77 @@ CVE-2024-3094,XZ Utils Malicious Backdoor RCE,xz-utils,>=5.6.0 <=5.6.1,10.0,5,0.
   async getWhatsappLink(payload: any): Promise<any> {
     const res = await fetch(`${API_BASE}/alerts/whatsapp-link`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(),
       body: JSON.stringify(payload)
     });
     if (!res.ok) throw new Error('Failed to generate WhatsApp link');
     return await res.json();
+  },
+
+  // Real Authentication Methods
+  async getDemoAccounts(): Promise<DemoAccountInfo[]> {
+    const res = await fetch(`${API_BASE}/auth/demo-accounts`);
+    if (!res.ok) throw new Error('Failed to load demo accounts');
+    return await res.json();
+  },
+
+  async login(payload: { email: string; password: string }): Promise<AuthResponse> {
+    const res = await fetch(`${API_BASE}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Authentication failed' }));
+      throw new Error(err.detail || 'Invalid email or password');
+    }
+    const data: AuthResponse = await res.json();
+    authStorage.setSession(data.access_token, data.user);
+    return data;
+  },
+
+  async register(payload: {
+    email: string;
+    password: string;
+    full_name: string;
+    role?: string;
+    organization?: string;
+  }): Promise<AuthResponse> {
+    const res = await fetch(`${API_BASE}/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Registration failed' }));
+      throw new Error(err.detail || 'Failed to register account');
+    }
+    const data: AuthResponse = await res.json();
+    authStorage.setSession(data.access_token, data.user);
+    return data;
+  },
+
+  async getCurrentUser(): Promise<UserProfile | null> {
+    const token = authStorage.getToken();
+    if (!token) return null;
+    try {
+      const res = await fetch(`${API_BASE}/auth/me`, {
+        headers: getAuthHeaders()
+      });
+      if (!res.ok) {
+        authStorage.clearSession();
+        return null;
+      }
+      const user: UserProfile = await res.json();
+      localStorage.setItem(USER_KEY, JSON.stringify(user));
+      return user;
+    } catch {
+      return authStorage.getUser();
+    }
+  },
+
+  logout() {
+    authStorage.clearSession();
   }
 };
 

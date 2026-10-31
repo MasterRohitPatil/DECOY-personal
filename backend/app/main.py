@@ -2,9 +2,10 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.api.endpoints import router as api_router
+from app.api.auth import router as auth_router
 from app.models.schema import Base, Asset
 from app.db.session import engine, SessionLocal
-from app.db.seed import seed_database
+from app.db.seed import seed_database, seed_users
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -22,6 +23,7 @@ app.add_middleware(
 )
 
 app.include_router(api_router, prefix=settings.API_PREFIX)
+app.include_router(auth_router, prefix=settings.API_PREFIX)
 
 @app.on_event("startup")
 def on_startup():
@@ -33,6 +35,7 @@ def on_startup():
             print("[SENTINEL GRID] Seeding initial dataset into database...")
             seed_database(db)
             print("[SENTINEL GRID] Seed complete!")
+        seed_users(db)
     except Exception as e:
         print(f"[SENTINEL GRID STARTUP WARNING] Database auto-seed: {e}")
     finally:
