@@ -1,0 +1,8 @@
+device_name,software,publisher,installed_version,lifecycle,public_facing,importance,custodian
+api-gw-01.bank.net,nginx,f5,1.24.0,Production,yes,Critical,Core Banking SRE
+sec-vpn-02.bank.net,openvpn,openvpn,2.5.8,Production,public,High,Enterprise NetSec
+auth-ldap-01.bank.net,apache,apache,2.4.49,Production,no,Critical,Identity Platform
+db-cluster-replica-01.bank.net,postgresql,postgresql,15.2,Production,no,High,DBA Operations
+dev-test-node-09.bank.net,redis,redis,6.2.6,Development,no,Low,App Engineering
+staging-proxy-03.bank.net,nginx,f5,1.25.4,Staging,yes,Medium,QA Infrastructure
+corrupted-row-no-software.bank.net,,generic,1.0.0,Production,yes,Medium,Orphaned Asset

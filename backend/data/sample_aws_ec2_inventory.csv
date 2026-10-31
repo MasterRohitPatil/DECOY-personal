@@ -1,0 +1,8 @@
+node,application,vendor,pkg_ver,tier,exposed,priority,team
+i-09f4812a-pay-ingress,log4j-core,apache,2.14.1,prod,external,p1,Payments SRE
+i-03d8819b-k8s-master,kubelet,kubernetes,1.26.2,prod,internal,p2,DevOps Platform
+i-05c7721e-san-storage,serv-u,solarwinds,15.3.0,prod,public,p1,Cloud Storage
+i-07e1144f-redis-cache,redis,redis,7.0.5,prod,internal,p3,Caching Tier
+i-02b9933c-auth-proxy,nginx,f5,1.24.0,prod,external,p1,Identity Ops
+i-04a1122d-stage-worker,docker,docker,24.0.7,stage,internal,p4,QA Testing
+,apache,apache,2.4.50,dev,no,p5,Missing Host Test

@@ -24,6 +24,9 @@ from app.services.attacks import simulate_attack
 from app.services.alerting import generate_whatsapp_alert, generate_email_alert, send_real_email_via_smtp
 from app.services.state_machine import transition_warning_state
 from app.services.llm import generate_executive_ai_brief
+from app.services.csv_parser import ingest_csv_data
+from app.services.auth import get_current_user_optional
+from app.models.schema import UserAccount
 
 router = APIRouter()
 
@@ -544,18 +547,28 @@ def health_check(db: Session = Depends(get_db)):
 @router.get("/sample-csv/{name}")
 def get_sample_csv(name: str):
     data_dir = os.path.join(os.path.dirname(__file__), "..", "..", "data")
-    filename = "sample_threats.csv" if name == "threats" else "sample_assets.csv"
+    key = name.lower()
+    if key in ["servicenow", "cmdb", "assets"]:
+        filename = "sample_cmdb_servicenow.csv"
+    elif key in ["aws", "ec2", "cloud"]:
+        filename = "sample_aws_ec2_inventory.csv"
+    elif key in ["qualys", "threats", "scanner"]:
+        filename = "sample_qualys_threat_feed.csv"
+    else:
+        filename = "sample_cmdb_servicenow.csv"
+
     path = os.path.join(data_dir, filename)
     if not os.path.exists(path):
         raise HTTPException(status_code=404, detail="Sample CSV not found")
     with open(path, "r", encoding="utf-8") as f:
         return PlainTextResponse(f.read(), media_type="text/csv")
 
-# 16. Ingest Threat or Asset CSV
+# 16. Ingest Threat or Asset CSV with Schema-Tolerance & Diagnostics
 @router.post("/upload/csv")
 async def upload_csv(
     file: Optional[UploadFile] = File(None),
     raw_content: Optional[str] = Body(None),
+    current_user: Optional[UserAccount] = Depends(get_current_user_optional),
     db: Session = Depends(get_db)
 ):
     content_str = ""
@@ -565,195 +578,18 @@ async def upload_csv(
     elif raw_content:
         content_str = raw_content
     else:
-        sample_path = os.path.join(os.path.dirname(__file__), "..", "..", "data", "sample_threats.csv")
+        sample_path = os.path.join(os.path.dirname(__file__), "..", "..", "data", "sample_qualys_threat_feed.csv")
         if os.path.exists(sample_path):
             with open(sample_path, "r", encoding="utf-8") as f:
                 content_str = f.read()
         else:
             raise HTTPException(status_code=400, detail="No CSV file or content provided.")
 
-    reader = csv.DictReader(io.StringIO(content_str))
-    rows = list(reader)
-    if not rows:
-        raise HTTPException(status_code=400, detail="CSV file is empty or formatted incorrectly.")
-
-    fieldnames = [f.strip().lower() for f in (reader.fieldnames or [])]
+    actor_name = current_user.email if current_user else "SecOps Lead Analyst"
+    result = ingest_csv_data(content_str=content_str, db=db, actor=actor_name)
     
-    threats_added = 0
-    assets_added = 0
-    warnings_generated = 0
-
-    if "cve_id" in fieldnames:
-        for r in rows:
-            cve_id = r.get("cve_id", "").strip()
-            if not cve_id:
-                continue
-            title = r.get("title", f"Advisory for {cve_id}").strip()
-            product = r.get("product", "nginx").strip().lower()
-            constraints = r.get("version_constraints", ">=1.0.0").strip()
-            try:
-                cvss = float(r.get("cvss", 7.5))
-            except:
-                cvss = 7.5
-            try:
-                exploit_level = int(r.get("exploitation_level", 3))
-            except:
-                exploit_level = 3
-            try:
-                epss = float(r.get("epss", 0.65))
-            except:
-                epss = 0.65
-            kev_flag = str(r.get("kev_flag", "false")).strip().lower() in ["true", "1", "yes"]
-            desc = r.get("description", f"Automated threat ingestion for {cve_id}")
-
-            th_id = f"th_{cve_id.lower().replace('-', '_')}"
-            existing = db.query(Threat).filter(Threat.id == th_id).first()
-            if not existing:
-                threat = Threat(
-                    id=th_id,
-                    cve_ids=[cve_id],
-                    title=title,
-                    products=[product],
-                    version_constraints=constraints,
-                    exploitation_level=exploit_level,
-                    epss=epss,
-                    kev_flag=kev_flag,
-                    description=desc
-                )
-                db.add(threat)
-                threats_added += 1
-            else:
-                threat = existing
-
-            all_assets = db.query(Asset).all()
-            for ast in all_assets:
-                match_res = match_version_to_constraints(ast.product, ast.version, product, constraints)
-                if match_res["status"] in ["CONFIRMED_EXPOSED", "LIKELY_EXPOSED", "POSSIBLE"]:
-                    score_res = calculate_priority_score(
-                        cvss=cvss,
-                        exploitation_level=exploit_level,
-                        match_strength=match_res["match_strength"],
-                        internet_facing=ast.internet_facing,
-                        unique_origins=3,
-                        asset_criticality=ast.criticality,
-                        dependency_count=2,
-                        kev_flag=kev_flag,
-                        exposure_status=match_res["status"],
-                        active_attack=False,
-                        confidence=0.88,
-                        environment=ast.environment
-                    )
-
-                    warn_id = f"W-{cve_id}-{ast.hostname.split('.')[0]}"
-                    existing_w = db.query(WarningModel).filter(WarningModel.id == warn_id).first()
-                    if not existing_w:
-                        w = WarningModel(
-                            id=warn_id,
-                            threat_id=threat.id,
-                            dimensions_json=score_res["dimensions"],
-                            confidence=0.88,
-                            band=score_res["band"],
-                            risk_score=score_res["score"],
-                            rules_fired=score_res["rules_fired"],
-                            status="TRIAGED"
-                        )
-                        db.add(w)
-                        warnings_generated += 1
-
-                        exp = Exposure(
-                            id=f"exp_{warn_id}",
-                            threat_id=threat.id,
-                            asset_id=ast.id,
-                            status=match_res["status"],
-                            matched_range=constraints,
-                            alias_used=product,
-                            evidence=f"Matched version {ast.version} to {constraints}"
-                        )
-                        db.add(exp)
-
-                        ev = EvidenceLink(
-                            id=f"ev_{warn_id}",
-                            warning_id=warn_id,
-                            citation_key="[CSV-INGEST]",
-                            citation_text=f"CSV Advisory {cve_id}: {title} (CVSS {cvss})",
-                            url_or_ref=f"https://nvd.nist.gov/vuln/detail/{cve_id}",
-                            confidence=0.92
-                        )
-                        db.add(ev)
-
-        db.commit()
-
-    elif "hostname" in fieldnames:
-        for r in rows:
-            hostname = r.get("hostname", "").strip()
-            if not hostname:
-                continue
-            product = r.get("product", "nginx").strip().lower()
-            vendor = r.get("vendor", "generic").strip()
-            version = r.get("version", "1.0.0").strip()
-            env = r.get("environment", "PROD").strip().upper()
-            internet_facing = str(r.get("internet_facing", "true")).strip().lower() in ["true", "1", "yes"]
-            try:
-                crit = int(r.get("criticality", 3))
-            except:
-                crit = 3
-            owner = r.get("owner", "Infrastructure").strip()
-
-            ast_id = f"ast_{hostname.split('.')[0]}"
-            existing_a = db.query(Asset).filter(Asset.id == ast_id).first()
-            if not existing_a:
-                ast = Asset(
-                    id=ast_id,
-                    hostname=hostname,
-                    product=product,
-                    vendor=vendor,
-                    version=version,
-                    environment=env,
-                    internet_facing=internet_facing,
-                    criticality=crit,
-                    owner=owner,
-                    synthetic=True
-                )
-                db.add(ast)
-                assets_added += 1
-            else:
-                ast = existing_a
-
-            all_threats = db.query(Threat).all()
-            for th in all_threats:
-                th_prod = th.products[0] if th.products else ""
-                match_res = match_version_to_constraints(ast.product, ast.version, th_prod, th.version_constraints)
-                if match_res["status"] in ["CONFIRMED_EXPOSED", "LIKELY_EXPOSED", "POSSIBLE"]:
-                    score_res = calculate_priority_score(
-                        cvss=8.0,
-                        exploitation_level=th.exploitation_level,
-                        match_strength=match_res["match_strength"],
-                        internet_facing=ast.internet_facing,
-                        unique_origins=2,
-                        asset_criticality=ast.criticality,
-                        dependency_count=1,
-                        kev_flag=th.kev_flag,
-                        exposure_status=match_res["status"],
-                        active_attack=False,
-                        confidence=0.85,
-                        environment=ast.environment
-                    )
-                    warn_id = f"W-{th.cve_ids[0] if th.cve_ids else 'TH'}-{ast.hostname.split('.')[0]}"
-                    if not db.query(WarningModel).filter(WarningModel.id == warn_id).first():
-                        w = WarningModel(
-                            id=warn_id,
-                            threat_id=th.id,
-                            dimensions_json=score_res["dimensions"],
-                            confidence=0.85,
-                            band=score_res["band"],
-                            risk_score=score_res["score"],
-                            rules_fired=score_res["rules_fired"],
-                            status="TRIAGED"
-                        )
-                        db.add(w)
-                        warnings_generated += 1
-
-        db.commit()
+    if result.get("status") == "ERROR":
+        raise HTTPException(status_code=400, detail=result.get("message", "CSV ingestion failed."))
 
     total_assets = db.query(Asset).count()
     total_threats = db.query(Threat).count()
@@ -763,18 +599,13 @@ async def upload_csv(
         if w.band in bands:
             bands[w.band] += 1
 
-    return {
-        "status": "INGESTED",
-        "threats_added": threats_added,
-        "assets_added": assets_added,
-        "warnings_generated": warnings_generated,
-        "new_totals": {
-            "total_assets": total_assets,
-            "total_threats": total_threats,
-            "total_warnings": total_warnings,
-            "bands": bands
-        }
+    result["new_totals"] = {
+        "total_assets": total_assets,
+        "total_threats": total_threats,
+        "total_warnings": total_warnings,
+        "bands": bands
     }
+    return result
 
 # 17. Cryptographic Audit Trail (SHA-256 Merkle Verification)
 @router.get("/audit")

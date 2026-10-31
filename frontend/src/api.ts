@@ -266,39 +266,34 @@ export const api = {
   },
 
   async uploadCsv(file?: File, rawContent?: string): Promise<any> {
-    try {
-      if (file) {
-        const formData = new FormData();
-        formData.append('file', file);
-        const res = await fetch(`${API_BASE}/upload/csv`, {
-          method: 'POST',
-          body: formData
-        });
-        if (!res.ok) throw new Error('Upload failed');
-        return await res.json();
-      } else {
-        const res = await fetch(`${API_BASE}/upload/csv`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(rawContent || '')
-        });
-        if (!res.ok) throw new Error('Upload failed');
-        return await res.json();
+    const token = authStorage.getToken();
+    if (file) {
+      const formData = new FormData();
+      formData.append('file', file);
+      const headers: Record<string, string> = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch(`${API_BASE}/upload/csv`, {
+        method: 'POST',
+        headers,
+        body: formData
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: 'CSV upload failed' }));
+        throw new Error(err.detail || 'CSV upload failed');
       }
-    } catch (e) {
-      console.error(e);
-      return {
-        status: 'INGESTED',
-        threats_added: 8,
-        assets_added: 8,
-        warnings_generated: 4,
-        new_totals: {
-          total_assets: 34,
-          total_threats: 12,
-          total_warnings: 5,
-          bands: { CRITICAL: 3, HIGH: 2, MEDIUM: 0, LOW: 0 }
-        }
-      };
+      return await res.json();
+    } else {
+      const res = await fetch(`${API_BASE}/upload/csv`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(rawContent || '')
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: 'CSV upload failed' }));
+        throw new Error(err.detail || 'CSV upload failed');
+      }
+      return await res.json();
     }
   },
 

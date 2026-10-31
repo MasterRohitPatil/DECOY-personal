@@ -1,0 +1,7 @@
+cve_number,vuln_title,target_software,affected_versions,cvss_v3,exploitability,epss_score,cisa_kev,details
+CVE-2024-3094,XZ Utils Upstream Backdoor RCE,xz-utils,>=5.6.0 <=5.6.1,10.0,5,0.96,true,Critical supply-chain backdoor in upstream xz tarballs allowing unauthorized SSH authentication bypass.
+CVE-2021-44228,Apache Log4j Log4Shell Remote Code Execution,log4j-core,<=2.14.1,10.0,5,0.98,true,JNDI lookup injection flaw allowing unauthenticated remote attackers to execute arbitrary Java code.
+CVE-2023-44487,HTTP/2 Rapid Reset Gateway DDoS Flood,nginx,>=1.20.0 <=1.25.2,7.5,4,0.88,true,Multiplexed stream cancellation exploit resulting in immediate gateway denial of service.
+CVE-2024-28995,SolarWinds Serv-U Path Traversal Exfiltration,serv-u,<=15.4.2,8.6,4,0.82,true,Directory traversal vulnerability permitting arbitrary host file exfiltration across internet perimeter.
+CVE-2024-21762,Fortinet FortiOS SSL-VPN Remote Code Execution,fortios,>=7.0.0 <=7.4.2,9.8,5,0.96,true,Out-of-bounds write in sslvpnd engine allowing unauthenticated remote execution.
+INVALID-NO-PRODUCT,Corrupted vulnerability record,,<=1.0.0,5.0,2,0.10,false,Diagnostic test case row to confirm schema error reporting.
