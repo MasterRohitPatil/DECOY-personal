@@ -12,7 +12,6 @@ interface SidebarProps {
   unreadAlerts: number;
   isCollapsed: boolean;
   onToggleCollapse: () => void;
-  onOpenSocChat?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -21,8 +20,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   criticalCount,
   unreadAlerts,
   isCollapsed,
-  onToggleCollapse,
-  onOpenSocChat
+  onToggleCollapse
 }) => {
   const menuItems = [
     {
@@ -162,33 +160,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </button>
             );
           })}
-          {/* SOC Chat & Team Collaboration Shortcut */}
-          {onOpenSocChat && (
-            <div className="pt-2 px-1">
-              <button
-                onClick={onOpenSocChat}
-                title="Open SOC Collaboration Chat & Team"
-                className={`w-full p-2.5 rounded-xl text-xs font-semibold flex items-center transition-all bg-gradient-to-r from-blue-900/60 to-purple-900/60 hover:from-blue-800 hover:to-purple-800 border border-blue-500/40 text-blue-200 shadow-xs ${
-                  isCollapsed ? 'justify-center' : 'justify-between'
-                }`}
-              >
-                <div className="flex items-center gap-2.5 overflow-hidden">
-                  <MessageSquare className="w-4 h-4 text-cyan-400 shrink-0" />
-                  {!isCollapsed && (
-                    <div className="text-left truncate">
-                      <span className="block truncate font-bold text-white">SOC Team Chat</span>
-                      <span className="text-[10px] text-cyan-300 block truncate font-normal">#general & 1-on-1 DMs</span>
-                    </div>
-                  )}
-                </div>
-                {!isCollapsed && (
-                  <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-full bg-cyan-500 text-slate-950">
-                    Live
-                  </span>
-                )}
-              </button>
-            </div>
-          )}
         </nav>
       </div>
 

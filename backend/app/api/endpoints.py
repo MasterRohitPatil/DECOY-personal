@@ -21,7 +21,7 @@ from app.services.matcher import match_version_to_constraints
 from app.services.scorer import calculate_priority_score
 from app.services.guardrails import verify_cve_id, detect_prompt_injection, render_deterministic_brief
 from app.services.attacks import simulate_attack
-from app.services.alerting import generate_whatsapp_alert, generate_email_alert
+from app.services.alerting import generate_whatsapp_alert, generate_email_alert, send_real_email_via_smtp
 from app.services.state_machine import transition_warning_state
 from app.services.llm import generate_executive_ai_brief
 
@@ -811,273 +811,115 @@ def get_audit_trail(db: Session = Depends(get_db)):
         "records": list(reversed(chained))
     }
 
-# 18. SOC Analyst Team Management (1 Senior Lead + Up to 3 Junior Analysts)
-SOC_ANALYSTS = [
-    {
-        "id": "senior-lead-01",
-        "name": "Rohit Patil",
-        "email": "rohit.lead@sentinelgrid.gov.in",
-        "role": "Senior Analyst",
-        "specialization": "Lead Cyber Threat Architect & Incident Commander",
-        "status": "ACTIVE",
-        "avatarUrl": "https://api.dicebear.com/7.x/bottts/svg?seed=Rohit"
-    },
-    {
-        "id": "junior-analyst-01",
-        "name": "Alice Zhang",
-        "email": "alice.zhang@sentinelgrid.gov.in",
-        "role": "Junior Analyst",
-        "specialization": "CVE Ingestion & Vulnerability Triage",
-        "status": "ACTIVE",
-        "avatarUrl": "https://api.dicebear.com/7.x/bottts/svg?seed=Alice"
-    },
-    {
-        "id": "junior-analyst-02",
-        "name": "Bob Miller",
-        "email": "bob.miller@sentinelgrid.gov.in",
-        "role": "Junior Analyst",
-        "specialization": "Endpoint Forensics & CISA KEV Tracking",
-        "status": "ACTIVE",
-        "avatarUrl": "https://api.dicebear.com/7.x/bottts/svg?seed=Bob"
-    }
-]
-
-@router.get("/soc/team")
-def get_soc_team():
-    junior_count = len([a for a in SOC_ANALYSTS if a["role"] == "Junior Analyst"])
+# 18. Alerting Endpoints (Real SMTP Dispatch & WhatsApp Link)
+@router.get("/alerts/smtp-status")
+def get_smtp_status():
+    configured = bool(settings.SMTP_USER and settings.SMTP_PASSWORD)
     return {
-        "senior_analysts": [a for a in SOC_ANALYSTS if a["role"] == "Senior Analyst"],
-        "junior_analysts": [a for a in SOC_ANALYSTS if a["role"] == "Junior Analyst"],
-        "max_junior_allowed": 3,
-        "junior_slots_remaining": max(0, 3 - junior_count),
-        "all": SOC_ANALYSTS
+        "configured": configured,
+        "host": settings.SMTP_HOST or "smtp.gmail.com",
+        "port": settings.SMTP_PORT or 587,
+        "from_address": settings.SMTP_FROM or settings.SMTP_USER or ""
     }
 
-@router.post("/soc/team/invite")
-def invite_junior_analyst(payload: dict = Body(...), db: Session = Depends(get_db)):
-    current_juniors = [a for a in SOC_ANALYSTS if a["role"] == "Junior Analyst"]
-    if len(current_juniors) >= 3:
-        raise HTTPException(status_code=400, detail="Team capacity reached: Maximum 3 Junior Analysts allowed per Senior Lead.")
+@router.post("/alerts/send-email")
+def dispatch_real_email(payload: dict = Body(...), db: Session = Depends(get_db)):
+    to_email = payload.get("to_email", "").strip()
+    if not to_email:
+        raise HTTPException(status_code=400, detail="Recipient email address is required.")
     
-    name = payload.get("name", "").strip()
-    email = payload.get("email", "").strip()
-    specialization = payload.get("specialization", "Security Triage & Incident Monitoring").strip()
-    
-    if not name or not email:
-        raise HTTPException(status_code=400, detail="Analyst name and email are required.")
-    
-    new_analyst = {
-        "id": f"junior-analyst-0{len(current_juniors) + 1}",
-        "name": name,
-        "email": email,
-        "role": "Junior Analyst",
-        "specialization": specialization,
-        "status": "ACTIVE",
-        "avatarUrl": f"https://api.dicebear.com/7.x/bottts/svg?seed={name.replace(' ', '')}"
-    }
-    SOC_ANALYSTS.append(new_analyst)
-    
-    db.add(AuditLog(
-        actor="Rohit Patil (Senior Analyst)",
-        action="JUNIOR_ANALYST_INVITED",
-        object=new_analyst["email"],
-        before_state={"junior_count": len(current_juniors)},
-        after_state={"junior_count": len(current_juniors) + 1, "new_member": name},
-        reason=f"Senior Lead authorized provisioning of Junior Analyst {name} ({specialization})",
-        simulated=False
-    ))
-    db.commit()
-    
-    return {"status": "SUCCESS", "analyst": new_analyst}
+    warning_id = payload.get("warning_id", "W-INCIDENT")
+    title = payload.get("title", "Security Incident Advisory")
+    target_hostname = payload.get("target_hostname", "enterprise-host")
+    source_ip = payload.get("source_ip", "Unknown")
+    try:
+        risk_score = float(payload.get("risk_score", 85.0))
+    except:
+        risk_score = 85.0
+    band = payload.get("band", "HIGH").upper()
+    recommended_action = payload.get("recommended_action", "Investigate and apply perimeter containment.")
 
-# 19. In-App SOC Collaboration & Chat (General + 1-on-1 + Code Sharing)
-SOC_MESSAGES = [
-    {
-        "id": "msg-001",
-        "channel": "general",
-        "senderId": "senior-lead-01",
-        "senderName": "Rohit Patil",
-        "senderRole": "Senior Analyst",
-        "timestamp": "10:14 AM",
-        "text": "Team: We have active telemetry spikes on auth-srv-01 and edge-proxy-01. Alice, please verify CISA KEV status for CVE-2024-3094.",
-        "warningReference": "W-2026-001"
-    },
-    {
-        "id": "msg-002",
-        "channel": "general",
-        "senderId": "junior-analyst-01",
-        "senderName": "Alice Zhang",
-        "senderRole": "Junior Analyst",
-        "timestamp": "10:15 AM",
-        "text": "Lead Rohit: Confirmed! CVE-2024-3094 is listed in CISA KEV catalog. CVSS is 9.8 Critical with known active exploitation.",
-        "warningReference": "W-2026-001"
-    },
-    {
-        "id": "msg-003",
-        "channel": "general",
-        "senderId": "senior-lead-01",
-        "senderName": "Rohit Patil",
-        "senderRole": "Senior Analyst",
-        "timestamp": "10:16 AM",
-        "text": "Sharing emergency iptables containment rule for the malicious egress IP 185.220.101.5. Apply to all perimeter firewalls.",
-        "codeSnippet": {
-            "language": "bash",
-            "description": "Perimeter Firewall Egress Drop Rule",
-            "code": "iptables -I FORWARD 1 -s 185.220.101.5 -j DROP\niptables -I INPUT 1 -s 185.220.101.5 -j DROP\nconntrack -D -s 185.220.101.5"
-        }
-    },
-    {
-        "id": "msg-004",
-        "channel": "dm",
-        "recipientId": "junior-analyst-02",
-        "senderId": "senior-lead-01",
-        "senderName": "Rohit Patil",
-        "senderRole": "Senior Analyst",
-        "timestamp": "10:18 AM",
-        "text": "Bob, please pull memory forensics on workstation-dev-12. Check for suspicious .rar staging files.",
-        "warningReference": "W-CVE-2024-11878"
-    },
-    {
-        "id": "msg-005",
-        "channel": "dm",
-        "recipientId": "senior-lead-01",
-        "senderId": "junior-analyst-02",
-        "senderName": "Bob Miller",
-        "senderRole": "Junior Analyst",
-        "timestamp": "10:19 AM",
-        "text": "On it Lead Rohit. Dumping memory artifacts now. Will update incident dossier shortly."
-    }
-]
+    email_data = generate_email_alert(
+        warning_id=warning_id,
+        title=title,
+        target_hostname=target_hostname,
+        source_ip=source_ip,
+        risk_score=risk_score,
+        band=band,
+        recommended_action=recommended_action
+    )
 
-@router.get("/soc/chat")
-def get_soc_chat_messages(channel: str = "general", recipient_id: Optional[str] = None):
-    if channel == "general":
-        return [m for m in SOC_MESSAGES if m["channel"] == "general"]
-    else:
-        return [
-            m for m in SOC_MESSAGES
-            if m["channel"] == "dm" and (m.get("recipientId") == recipient_id or m.get("senderId") == recipient_id)
-        ]
+    plain_text = (
+        f"SENTINEL GRID SECURITY ALERT [{band}]\n"
+        f"Incident: {title}\n"
+        f"Warning ID: {warning_id}\n"
+        f"Target Host: {target_hostname}\n"
+        f"Source IP: {source_ip}\n"
+        f"Risk Score: {risk_score:.1f}\n"
+        f"Action: {recommended_action}\n"
+    )
 
-@router.post("/soc/chat/message")
-def send_soc_chat_message(payload: dict = Body(...), db: Session = Depends(get_db)):
-    msg_id = f"msg-{len(SOC_MESSAGES) + 1:03d}"
-    text_content = payload.get("text", "").strip()
-    channel = payload.get("channel", "general")
-    sender_id = payload.get("senderId", "senior-lead-01")
-    sender_name = payload.get("senderName", "Rohit Patil")
-    sender_role = payload.get("senderRole", "Senior Analyst")
-    recipient_id = payload.get("recipientId")
-    code_snippet = payload.get("codeSnippet")
-    warning_ref = payload.get("warningReference")
+    try:
+        res = send_real_email_via_smtp(
+            to_email=to_email,
+            subject=email_data["subject"],
+            html_content=email_data["html_body"],
+            plain_text=plain_text
+        )
 
-    if not text_content and not code_snippet:
-        raise HTTPException(status_code=400, detail="Message text or code snippet required.")
-
-    now_time = datetime.now().strftime("%I:%M %p")
-    new_msg = {
-        "id": msg_id,
-        "channel": channel,
-        "senderId": sender_id,
-        "senderName": sender_name,
-        "senderRole": sender_role,
-        "recipientId": recipient_id,
-        "timestamp": now_time,
-        "text": text_content,
-        "codeSnippet": code_snippet,
-        "warningReference": warning_ref
-    }
-    SOC_MESSAGES.append(new_msg)
-
-    if code_snippet:
         db.add(AuditLog(
-            actor=f"{sender_name} ({sender_role})",
-            action="CODE_SNIPPET_SHARED",
-            object=f"SOC_CHANNEL_{channel.upper()}",
-            before_state=None,
-            after_state={"snippet_title": code_snippet.get("description", "Containment Rule")},
-            reason="Senior Analyst shared operational mitigation code with team",
+            actor="SecOps Operator",
+            action="EMAIL_ALERT_DISPATCHED",
+            object=f"{warning_id} -> {to_email}",
+            before_state={"channel": "QUEUED"},
+            after_state={"recipient": to_email, "status": "SENT_VIA_SMTP", "server": res["smtp_server"]},
+            reason=f"Emergency security advisory dispatched to {to_email}",
             simulated=False
         ))
         db.commit()
 
-    return new_msg
-
-# 20. 2FA Gmail OTP Verification for Emergency Alert Broadcasts
-ACTIVE_OTP = {"code": "739201", "email": "rohit.lead@sentinelgrid.gov.in"}
-
-@router.post("/alerts/otp/request")
-def request_alert_otp(payload: dict = Body(...)):
-    email = payload.get("email", "rohit.lead@sentinelgrid.gov.in")
-    import random
-    code = f"{random.randint(100000, 999999)}"
-    ACTIVE_OTP["code"] = code
-    ACTIVE_OTP["email"] = email
-    return {
-        "status": "OTP_DISPATCHED",
-        "dispatched_to": email,
-        "preview_otp_for_hackathon": code,
-        "message": f"6-Digit verification code dispatched to authorized SecOps Lead Gmail ({email})."
-    }
-
-@router.post("/alerts/otp/verify")
-def verify_alert_otp(payload: dict = Body(...)):
-    provided_code = payload.get("code", "").strip()
-    if provided_code == ACTIVE_OTP["code"] or provided_code == "739201" or provided_code == "123456":
         return {
-            "status": "VERIFIED",
-            "token": "SEC-OPS-AUTH-" + hashlib.sha256(provided_code.encode()).hexdigest()[:16],
-            "officer": "Rohit Patil (Senior Analyst)",
-            "message": "Analyst Identity Authenticated. Authorized to broadcast National Threat Warning."
+            "status": "SENT",
+            "recipient": to_email,
+            "smtp_server": res["smtp_server"],
+            "subject": email_data["subject"]
         }
-    raise HTTPException(status_code=401, detail="Invalid OTP code. Please enter the valid 6-digit code.")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except PermissionError as e:
+        raise HTTPException(status_code=401, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
 
-# 21. Dispatch Emergency WhatsApp & Email Alert
-@router.post("/alerts/dispatch")
-def dispatch_emergency_alert(payload: dict = Body(...), db: Session = Depends(get_db)):
-    phone = payload.get("phone", "+91 98765 43210").strip()
-    email = payload.get("email", "ciso@infra.gov.in").strip()
-    warning_id = payload.get("warning_id", "W-2026-001")
-    title = payload.get("title", "Critical Security Incident Alert")
-    risk_score = payload.get("risk_score", 92.4)
-    auth_token = payload.get("auth_token", "SEC-OPS-VERIFIED")
+@router.post("/alerts/whatsapp-link")
+def get_whatsapp_deep_link(payload: dict = Body(...)):
+    phone = payload.get("phone", "").strip()
+    warning_id = payload.get("warning_id", "W-INCIDENT")
+    title = payload.get("title", "Security Incident Advisory")
+    target_hostname = payload.get("target_hostname", "enterprise-host")
+    source_ip = payload.get("source_ip", "Unknown")
+    try:
+        risk_score = float(payload.get("risk_score", 85.0))
+    except:
+        risk_score = 85.0
+    band = payload.get("band", "HIGH").upper()
+    recommended_action = payload.get("recommended_action", "Investigate and apply perimeter containment.")
 
-    msg_text = (
-        f"*🚨 SENTINEL GRID - NATIONAL CYBER THREAT WARNING*\n\n"
-        f"*Incident:* {title}\n"
-        f"*Warning ID:* {warning_id}\n"
-        f"*Calculated Risk Score:* {risk_score}/100 (CRITICAL)\n"
-        f"*Authorized By:* Rohit Patil (Senior Lead Analyst)\n"
-        f"*Action Required:* Immediate isolation of compromised host & firewall block.\n"
-        f"*Dossier Link:* https://sentinelgrid.gov.in/warnings/{warning_id}"
+    res = generate_whatsapp_alert(
+        warning_id=warning_id,
+        title=title,
+        target_hostname=target_hostname,
+        source_ip=source_ip,
+        risk_score=risk_score,
+        band=band,
+        recommended_action=recommended_action
     )
-    import urllib.parse
-    clean_phone = "".join(ch for ch in phone if ch.isdigit() or ch == '+')
-    wa_url = f"https://wa.me/{clean_phone.replace('+', '')}?text={urllib.parse.quote(msg_text)}"
 
-    db.add(AuditLog(
-        actor="Rohit Patil (Senior Analyst)",
-        action="ALERT_BROADCAST_DISPATCHED",
-        object=f"{warning_id}",
-        before_state={"channel": "QUEUED"},
-        after_state={"phone": phone, "email": email, "auth_token": auth_token[:12]},
-        reason=f"Emergency multi-channel threat notification dispatched to {phone} and {email}",
-        simulated=False
-    ))
-    db.commit()
+    if phone:
+        import urllib.parse
+        clean_phone = "".join(ch for ch in phone if ch.isdigit() or ch == "+").replace("+", "")
+        res["wa_deep_link"] = f"https://wa.me/{clean_phone}?text={urllib.parse.quote(res['formatted_text'])}"
 
-    return {
-        "status": "DISPATCHED",
-        "whatsapp": {
-            "phone": phone,
-            "deep_link": wa_url,
-            "preview": msg_text
-        },
-        "email": {
-            "recipient": email,
-            "status": "DELIVERED",
-            "relay": "Gov-SMTP-Secure-Relay (TLS 1.3)",
-            "message_id": f"gov-msg-{hashlib.sha256(phone.encode()).hexdigest()[:8]}"
-        }
-    }
+    return res
+
 

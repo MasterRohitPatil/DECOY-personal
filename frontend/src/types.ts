@@ -97,41 +97,6 @@ export interface OverviewData {
   };
 }
 
-export interface Analyst {
-  id: string;
-  name: string;
-  email: string;
-  role: 'Senior Analyst' | 'Junior Analyst';
-  specialization: string;
-  status: 'ACTIVE' | 'AWAY' | 'ON_CALL';
-  avatarUrl?: string;
-}
-
-export interface SocTeamResponse {
-  senior_analysts: Analyst[];
-  junior_analysts: Analyst[];
-  max_junior_allowed: number;
-  junior_slots_remaining: number;
-  all: Analyst[];
-}
-
-export interface ChatMessage {
-  id: string;
-  channel: 'general' | 'dm';
-  senderId: string;
-  senderName: string;
-  senderRole: string;
-  recipientId?: string;
-  timestamp: string;
-  text: string;
-  codeSnippet?: {
-    language: string;
-    description: string;
-    code: string;
-  };
-  warningReference?: string;
-}
-
 export interface AuditRecord {
   id: string;
   ts: string;
@@ -152,32 +117,29 @@ export interface AuditResponse {
   records: AuditRecord[];
 }
 
-export interface OtpRequestResponse {
-  status: string;
-  dispatched_to: string;
-  preview_otp_for_hackathon: string;
-  message: string;
+export interface SmtpStatusResponse {
+  configured: boolean;
+  host: string;
+  port: number;
+  from_address: string;
 }
 
-export interface OtpVerifyResponse {
-  status: string;
-  token: string;
-  officer: string;
-  message: string;
+export interface SendEmailPayload {
+  to_email: string;
+  warning_id: string;
+  title: string;
+  target_hostname: string;
+  source_ip: string;
+  risk_score: number;
+  band: string;
+  recommended_action: string;
 }
 
-export interface DispatchAlertResponse {
+export interface SendEmailResponse {
   status: string;
-  whatsapp: {
-    phone: string;
-    deep_link: string;
-    preview: string;
-  };
-  email: {
-    recipient: string;
-    status: string;
-    relay: string;
-    message_id: string;
-  };
+  recipient: string;
+  smtp_server: string;
+  subject: string;
 }
+
 

@@ -1,5 +1,9 @@
 import urllib.parse
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 from typing import Dict, Any
+from app.config import settings
 
 def generate_whatsapp_alert(
     warning_id: str,
@@ -90,8 +94,51 @@ def generate_email_alert(
         "warning_id": warning_id,
         "channel": "EMAIL",
         "subject": f"[{band}] SENTINEL GRID Alert: {title} on {target_hostname}",
-        "sender": "soc-alerts@sentinel-grid.internal",
-        "recipient": "security-leads@sentinel-grid.internal",
+        "sender": settings.SMTP_FROM or settings.SMTP_USER or "soc-alerts@sentinelgrid.internal",
+        "recipient": "security-leads@sentinelgrid.internal",
         "html_body": html_body
     }
+
+def send_real_email_via_smtp(
+    to_email: str,
+    subject: str,
+    html_content: str,
+    plain_text: str
+) -> Dict[str, Any]:
+    """Authenticates to SMTP server and sends a real email message."""
+    if not settings.SMTP_USER or not settings.SMTP_PASSWORD:
+        raise ValueError("SMTP_USER and SMTP_PASSWORD must be configured in backend/.env to send live emails.")
+    
+    host = settings.SMTP_HOST or "smtp.gmail.com"
+    port = settings.SMTP_PORT or 587
+    sender = settings.SMTP_FROM or settings.SMTP_USER
+
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = subject
+    msg["From"] = f"SENTINEL GRID Early Warning <{sender}>"
+    msg["To"] = to_email
+
+    msg.attach(MIMEText(plain_text, "plain", "utf-8"))
+    msg.attach(MIMEText(html_content, "html", "utf-8"))
+
+    try:
+        with smtplib.SMTP(host, port, timeout=12) as server:
+            server.ehlo()
+            server.starttls()
+            server.ehlo()
+            server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
+            server.send_message(msg)
+            
+        return {
+            "success": True,
+            "recipient": to_email,
+            "smtp_server": f"{host}:{port}",
+            "sender": sender
+        }
+    except smtplib.SMTPAuthenticationError as e:
+        err_msg = e.smtp_error.decode("utf-8", errors="ignore") if hasattr(e, "smtp_error") and isinstance(e.smtp_error, bytes) else str(e)
+        raise PermissionError(f"SMTP Authentication Failed: {err_msg}. Please verify your Gmail App Password in backend/.env.")
+    except Exception as e:
+        raise RuntimeError(f"SMTP Delivery Failed ({type(e).__name__}): {str(e)}")
+
 

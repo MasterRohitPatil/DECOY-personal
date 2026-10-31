@@ -34,6 +34,13 @@ class Settings(BaseSettings):
     SIMULATED_ACTIONS: bool = os.getenv("SIMULATED_ACTIONS", "true").lower() == "true"
     OFFLINE_PROFILE: bool = os.getenv("OFFLINE_PROFILE", "true").lower() == "true"
 
+    # Real SMTP Email Configuration
+    SMTP_HOST: str = os.getenv("SMTP_HOST", "")
+    SMTP_PORT: int = int(os.getenv("SMTP_PORT", "587"))
+    SMTP_USER: str = os.getenv("SMTP_USER", "")
+    SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD", "")
+    SMTP_FROM: str = os.getenv("SMTP_FROM", "")
+
     @property
     def cors_origins_list(self) -> list[str]:
         return [origin.strip() for origin in self.CORS_ORIGINS.split(",") if origin.strip()]

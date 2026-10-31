@@ -142,8 +142,7 @@ export const AuditPage: React.FC = () => {
               ) : (
                 filteredRecords.map((r) => {
                   const isExpanded = expandedId === r.id;
-                  const isSenior = r.actor.includes('Senior') || r.actor.includes('Rohit') || r.actor.includes('Lead');
-                  const isJunior = r.actor.includes('Junior') || r.actor.includes('Alice') || r.actor.includes('Bob');
+                  const isAutomated = r.actor.includes('ENGINE') || r.actor.includes('FEED') || r.actor.includes('CORRELATOR');
 
                   return (
                     <React.Fragment key={r.id}>
@@ -154,11 +153,9 @@ export const AuditPage: React.FC = () => {
 
                         <td className="py-3 px-4 whitespace-nowrap">
                           <span className={`px-2 py-0.5 rounded text-[11px] font-semibold ${
-                            isSenior
-                              ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300'
-                              : isJunior
-                              ? 'bg-teal-100 text-teal-700 dark:bg-teal-900/50 dark:text-teal-300'
-                              : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                            isAutomated
+                              ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300'
+                              : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300'
                           }`}>
                             {r.actor}
                           </span>

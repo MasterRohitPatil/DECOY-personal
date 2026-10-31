@@ -5,7 +5,6 @@ import { Sidebar } from './components/Sidebar';
 import { Navbar } from './components/Navbar';
 import { GuideModal } from './components/GuideModal';
 import { CsvUploadModal } from './components/CsvUploadModal';
-import { SocChatDrawer } from './components/SocChatDrawer';
 
 // Pages
 import { DashboardPage } from './pages/DashboardPage';
@@ -23,10 +22,8 @@ export function App() {
   const [selectedWarningId, setSelectedWarningId] = useState<string | undefined>(undefined);
   const [isGuideOpen, setIsGuideOpen] = useState(false);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
-  const [isSocChatOpen, setIsSocChatOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [resetting, setResetting] = useState(false);
-  const [currentRole, setCurrentRole] = useState<'Senior Analyst' | 'Junior Analyst'>('Senior Analyst');
 
   // Theme state: Light theme is DEFAULT per user preference
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
@@ -77,7 +74,7 @@ export function App() {
       case 'warnings': return 'Early Warning Hub (Threat Intelligence & Matching)';
       case 'attack-lab': return 'Live Attack Lab & Visual Kill Chain Impact';
       case 'assets': return 'Enterprise Monitored Asset Inventory';
-      case 'alerts': return 'Multi-Channel Emergency Alert Center (2FA/OTP)';
+      case 'alerts': return 'Multi-Channel Incident Alert Center';
       case 'audit': return 'Cryptographic SecOps Audit Ledger & Merkle Verification';
       default: return 'SENTINEL GRID';
     }
@@ -95,7 +92,6 @@ export function App() {
         unreadAlerts={1}
         isCollapsed={isSidebarCollapsed}
         onToggleCollapse={() => setIsSidebarCollapsed(prev => !prev)}
-        onOpenSocChat={() => setIsSocChatOpen(true)}
       />
 
       {/* Main Workspace Column */}
@@ -107,9 +103,6 @@ export function App() {
           onReset={handleReset}
           onOpenGuide={() => setIsGuideOpen(true)}
           onOpenUpload={() => setIsUploadOpen(true)}
-          onOpenSocChat={() => setIsSocChatOpen(true)}
-          currentRole={currentRole}
-          onSwitchRole={setCurrentRole}
           resetting={resetting}
           theme={theme}
           onToggleTheme={toggleTheme}
@@ -172,14 +165,6 @@ export function App() {
         onSuccess={() => {
           refreshData();
         }}
-      />
-
-      {/* SOC Chat & Collaboration Drawer */}
-      <SocChatDrawer
-        isOpen={isSocChatOpen}
-        onClose={() => setIsSocChatOpen(false)}
-        currentRole={currentRole}
-        onSwitchRole={setCurrentRole}
       />
     </div>
   );

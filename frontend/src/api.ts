@@ -1,7 +1,6 @@
 import {
   OverviewData, WarningItem, WarningDetail, AssetItem,
-  AuditResponse, SocTeamResponse, ChatMessage,
-  OtpRequestResponse, OtpVerifyResponse, DispatchAlertResponse
+  AuditResponse, SmtpStatusResponse, SendEmailPayload, SendEmailResponse
 } from './types';
 
 const API_BASE = 'http://localhost:8000/api';
@@ -323,162 +322,33 @@ CVE-2024-3094,XZ Utils Malicious Backdoor RCE,xz-utils,>=5.6.0 <=5.6.1,10.0,5,0.
     }
   },
 
-  async getSocTeam(): Promise<SocTeamResponse> {
-    try {
-      const res = await fetch(`${API_BASE}/soc/team`);
-      if (!res.ok) throw new Error('Failed to fetch team');
-      return await res.json();
-    } catch {
-      return {
-        senior_analysts: [
-          {
-            id: 'senior-lead-01',
-            name: 'Rohit Patil',
-            email: 'rohit.lead@sentinelgrid.gov.in',
-            role: 'Senior Analyst',
-            specialization: 'Lead Cyber Threat Architect & Incident Commander',
-            status: 'ACTIVE'
-          }
-        ],
-        junior_analysts: [
-          {
-            id: 'junior-analyst-01',
-            name: 'Alice Zhang',
-            email: 'alice.zhang@sentinelgrid.gov.in',
-            role: 'Junior Analyst',
-            specialization: 'CVE Ingestion & Vulnerability Triage',
-            status: 'ACTIVE'
-          },
-          {
-            id: 'junior-analyst-02',
-            name: 'Bob Miller',
-            email: 'bob.miller@sentinelgrid.gov.in',
-            role: 'Junior Analyst',
-            specialization: 'Endpoint Forensics & CISA KEV Tracking',
-            status: 'ACTIVE'
-          }
-        ],
-        max_junior_allowed: 3,
-        junior_slots_remaining: 1,
-        all: []
-      };
-    }
+  async getSmtpStatus(): Promise<SmtpStatusResponse> {
+    const res = await fetch(`${API_BASE}/alerts/smtp-status`);
+    if (!res.ok) throw new Error('Failed to query SMTP status');
+    return await res.json();
   },
 
-  async inviteJuniorAnalyst(data: { name: string; email: string; specialization?: string }): Promise<any> {
-    const res = await fetch(`${API_BASE}/soc/team/invite`, {
+  async sendRealEmail(payload: SendEmailPayload): Promise<SendEmailResponse> {
+    const res = await fetch(`${API_BASE}/alerts/send-email`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
+      body: JSON.stringify(payload)
     });
     if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: 'Failed to invite analyst' }));
-      throw new Error(err.detail || 'Failed to invite analyst');
+      const err = await res.json().catch(() => ({ detail: 'Failed to send email' }));
+      throw new Error(err.detail || 'Email dispatch failed');
     }
     return await res.json();
   },
 
-  async getSocChat(channel: string = 'general', recipientId?: string): Promise<ChatMessage[]> {
-    try {
-      const url = recipientId
-        ? `${API_BASE}/soc/chat?channel=dm&recipient_id=${recipientId}`
-        : `${API_BASE}/soc/chat?channel=${channel}`;
-      const res = await fetch(url);
-      if (!res.ok) throw new Error('Failed to fetch chat');
-      return await res.json();
-    } catch {
-      return [
-        {
-          id: 'msg-01',
-          channel: 'general',
-          senderId: 'senior-lead-01',
-          senderName: 'Rohit Patil',
-          senderRole: 'Senior Analyst',
-          timestamp: '10:14 AM',
-          text: 'Team: Incident W-2026-001 is active. Verify all public assets against latest CISA KEV catalog.'
-        }
-      ];
-    }
-  },
-
-  async sendSocChatMessage(msg: Partial<ChatMessage>): Promise<ChatMessage> {
-    const res = await fetch(`${API_BASE}/soc/chat/message`, {
+  async getWhatsappLink(payload: any): Promise<any> {
+    const res = await fetch(`${API_BASE}/alerts/whatsapp-link`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(msg)
+      body: JSON.stringify(payload)
     });
-    if (!res.ok) throw new Error('Failed to post message');
+    if (!res.ok) throw new Error('Failed to generate WhatsApp link');
     return await res.json();
-  },
-
-  async requestAlertOtp(email?: string): Promise<OtpRequestResponse> {
-    try {
-      const res = await fetch(`${API_BASE}/alerts/otp/request`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email || 'rohit.lead@sentinelgrid.gov.in' })
-      });
-      return await res.json();
-    } catch {
-      return {
-        status: 'OTP_DISPATCHED',
-        dispatched_to: email || 'rohit.lead@sentinelgrid.gov.in',
-        preview_otp_for_hackathon: '739201',
-        message: '6-Digit verification code dispatched to authorized SecOps Lead Gmail.'
-      };
-    }
-  },
-
-  async verifyAlertOtp(code: string): Promise<OtpVerifyResponse> {
-    try {
-      const res = await fetch(`${API_BASE}/alerts/otp/verify`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code })
-      });
-      if (!res.ok) throw new Error('Invalid OTP code');
-      return await res.json();
-    } catch (e: any) {
-      if (code === '739201' || code === '123456') {
-        return {
-          status: 'VERIFIED',
-          token: 'SEC-OPS-AUTH-TOKEN-DEMO',
-          officer: 'Rohit Patil (Senior Analyst)',
-          message: 'Analyst Identity Authenticated. Authorized to broadcast National Threat Warning.'
-        };
-      }
-      throw new Error(e.message || 'OTP verification failed');
-    }
-  },
-
-  async dispatchEmergencyAlert(payload: any): Promise<DispatchAlertResponse> {
-    try {
-      const res = await fetch(`${API_BASE}/alerts/dispatch`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      if (!res.ok) throw new Error('Dispatch failed');
-      return await res.json();
-    } catch {
-      const phone = payload.phone || '+91 98765 43210';
-      const cleanPhone = phone.replace(/[^0-9]/g, '');
-      const waText = encodeURIComponent(`🚨 SENTINEL GRID ALERT: ${payload.title || 'Threat Detected'}. Risk: ${payload.risk_score || 92}/100.`);
-      return {
-        status: 'DISPATCHED',
-        whatsapp: {
-          phone,
-          deep_link: `https://wa.me/${cleanPhone}?text=${waText}`,
-          preview: `SENTINEL GRID ALERT: ${payload.title}`
-        },
-        email: {
-          recipient: payload.email || 'ciso@infra.gov.in',
-          status: 'DELIVERED',
-          relay: 'Gov-SMTP-Secure-Relay (TLS 1.3)',
-          message_id: 'msg-local-fallback-991'
-        }
-      };
-    }
   }
 };
 

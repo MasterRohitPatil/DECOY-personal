@@ -15,42 +15,26 @@ def test_audit_trail_endpoint():
         assert "hash" in data["records"][0]
         assert len(data["records"][0]["hash"]) == 64
 
-def test_soc_team_endpoints():
-    response = client.get("/api/soc/team")
+def test_smtp_status_endpoint():
+    response = client.get("/api/alerts/smtp-status")
     assert response.status_code == 200
-    team = response.json()
-    assert "senior_analysts" in team
-    assert "junior_analysts" in team
-    assert team["max_junior_allowed"] == 3
-    assert len(team["senior_analysts"]) >= 1
+    data = response.json()
+    assert "configured" in data
+    assert "host" in data
+    assert "port" in data
 
-def test_soc_chat_endpoints():
-    response = client.get("/api/soc/chat?channel=general")
-    assert response.status_code == 200
-    messages = response.json()
-    assert isinstance(messages, list)
-    assert len(messages) >= 1
-
-    # Post message
-    post_res = client.post("/api/soc/chat/message", json={
-        "text": "Automated test message for SOC alert triage",
-        "channel": "general",
-        "senderName": "Test Bot",
-        "senderRole": "Automated Defense"
+def test_whatsapp_link_endpoint():
+    response = client.post("/api/alerts/whatsapp-link", json={
+        "phone": "+919876543210",
+        "title": "Critical NGINX RCE",
+        "warning_id": "W-2026-001",
+        "target_hostname": "auth-srv-01",
+        "source_ip": "185.220.101.5",
+        "risk_score": 93.4,
+        "band": "CRITICAL",
+        "recommended_action": "Isolate container"
     })
-    assert post_res.status_code == 200
-    assert post_res.json()["text"] == "Automated test message for SOC alert triage"
-
-def test_otp_flow():
-    # Request OTP
-    req_res = client.post("/api/alerts/otp/request", json={"email": "ciso@gov.in"})
-    assert req_res.status_code == 200
-    assert req_res.json()["status"] == "OTP_DISPATCHED"
-    otp = req_res.json()["preview_otp_for_hackathon"]
-
-    # Verify OTP
-    verify_res = client.post("/api/alerts/otp/verify", json={"code": otp})
-    assert verify_res.status_code == 200
-    assert verify_res.json()["status"] == "VERIFIED"
-    assert "token" in verify_res.json()
-
+    assert response.status_code == 200
+    data = response.json()
+    assert "wa_deep_link" in data
+    assert "wa.me/919876543210" in data["wa_deep_link"]

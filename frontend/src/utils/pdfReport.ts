@@ -4,7 +4,7 @@ import { WarningItem, WarningDetail, OverviewData } from '../types';
 export function generatePdfThreatReport(
   warning?: WarningItem | WarningDetail | null,
   overview?: OverviewData | null,
-  analystName: string = 'Rohit Patil (Senior Lead Analyst)'
+  analystName: string = 'SecOps Incident Response Officer'
 ) {
   const doc = new jsPDF({
     orientation: 'portrait',
