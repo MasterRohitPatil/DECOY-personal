@@ -157,8 +157,8 @@ export function App() {
         onToggleCollapse={() => setIsSidebarCollapsed(prev => !prev)}
       />
 
-      {/* Main Workspace Column */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+      {/* Main Workspace Column: Flex-1 child with min-w-0 to fluidly fill remaining space */}
+      <div className="flex-1 flex flex-col min-w-0 w-full overflow-hidden">
         {/* Top Navbar */}
         <Navbar
           currentPageTitle={getPageTitle()}
@@ -174,7 +174,7 @@ export function App() {
         />
 
         {/* Page Content View Area */}
-        <main className="flex-1 overflow-y-auto bg-slate-100/70 dark:bg-[#070A11]">
+        <main className="flex-1 overflow-y-auto bg-slate-100/70 dark:bg-[#070A11] min-w-0 w-full">
           {currentPage === 'dashboard' && (
             <DashboardPage
               overview={overview}

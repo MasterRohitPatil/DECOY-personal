@@ -66,7 +66,7 @@ export const AuditPage: React.FC = () => {
   });
 
   return (
-    <div className="p-6 space-y-6 max-w-7xl mx-auto">
+    <div className="p-6 space-y-6 w-full min-w-0">
       {/* Top Banner / Merkle Status */}
       <div className="bg-white dark:bg-[#0B0F19] rounded-xl p-5 border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>

@@ -228,3 +228,4 @@ def generate_incident_pdf_bytes(
 
     doc.build(elements)
     return buffer.getvalue()
+

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   ShieldAlert, Server, Activity, ArrowUpRight, Flame,
   CheckCircle2, AlertTriangle, Layers, ExternalLink, Zap,
@@ -10,6 +10,85 @@ import {
 import { OverviewData, WarningItem } from '../types';
 import { api } from '../api';
 import { generatePdfThreatReport } from '../utils/pdfReport';
+
+// Fixed graph node coordinates (viewBox 460 x 300)
+const NODE_COORDS: Record<string, { x: number; y: number }> = {
+  THREAT: { x: 230, y: 150 },
+  ASSET: { x: 80, y: 70 },
+  INTEL: { x: 380, y: 70 },
+  IP: { x: 60, y: 180 },
+  POLICY: { x: 400, y: 180 },
+  VECTOR: { x: 140, y: 250 },
+  STATUS: { x: 320, y: 250 }
+};
+
+// Shared Threat Intelligence Feed Card Component with unified truncation rule
+interface ThreatFeedCardItemProps {
+  item: {
+    id: string;
+    warningId: string;
+    title: string;
+    src: string;
+    sev: string;
+    score: number;
+    asset: string;
+  };
+  isSelected: boolean;
+  onClick: () => void;
+}
+
+const ThreatFeedCardItem: React.FC<ThreatFeedCardItemProps> = ({ item, isSelected, onClick }) => {
+  return (
+    <div
+      onClick={onClick}
+      className={`p-3 rounded-xl border transition-all cursor-pointer min-w-0 w-full overflow-hidden ${
+        isSelected
+          ? 'bg-blue-50/70 dark:bg-blue-950/40 border-blue-400 shadow-xs ring-1 ring-blue-400'
+          : 'bg-slate-50/60 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+      }`}
+    >
+      <div className="flex items-center justify-between mb-1 min-w-0">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 shrink-0">
+            {item.src}
+          </span>
+          <span className="font-mono text-xs font-bold text-slate-800 dark:text-slate-200 truncate">
+            {item.id}
+          </span>
+        </div>
+        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
+          item.sev === 'Critical'
+            ? 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400'
+            : 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400'
+        }`}>
+          {item.sev}
+        </span>
+      </div>
+
+      {/* Shared Single-Line Ellipsis Card Title */}
+      <h5
+        title={item.title}
+        className="font-bold text-xs text-slate-900 dark:text-white truncate block w-full min-w-0"
+        style={{
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis'
+        }}
+      >
+        {item.title}
+      </h5>
+
+      <div className="flex items-center justify-between text-[11px] text-slate-500 mt-1 font-mono min-w-0">
+        <span className="truncate">
+          Target: <strong className="text-slate-700 dark:text-slate-300">{item.asset.split('.')[0]}</strong>
+        </span>
+        <span className="font-bold text-red-600 dark:text-red-400 shrink-0 ml-2">
+          Risk: {item.score.toFixed(1)}
+        </span>
+      </div>
+    </div>
+  );
+};
 
 interface DashboardPageProps {
   overview: OverviewData | null;
@@ -97,6 +176,79 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   const [selectedThreatIdx, setSelectedThreatIdx] = useState<number>(0);
   const [inspectedNode, setInspectedNode] = useState<string | null>(null);
 
+  // Correlation Graph Tooltip Collision Detection & Boundary Clamping
+  const graphContainerRef = useRef<HTMLDivElement>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
+  const [tooltipPos, setTooltipPos] = useState<{ left: number; top: number; placement: 'left' | 'right' | 'top' | 'bottom' }>({
+    left: 0,
+    top: 0,
+    placement: 'left'
+  });
+
+  const updateTooltipPosition = useCallback(() => {
+    if (!inspectedNode || !graphContainerRef.current) return;
+    const container = graphContainerRef.current;
+    const containerRect = container.getBoundingClientRect();
+    const coords = NODE_COORDS[inspectedNode];
+    if (!coords) return;
+
+    const svgEl = svgRef.current;
+    let anchorX = containerRect.width / 2;
+    let anchorY = containerRect.height / 2;
+
+    if (svgEl) {
+      const svgRect = svgEl.getBoundingClientRect();
+      const scaleX = svgRect.width / 460;
+      const scaleY = svgRect.height / 300;
+      anchorX = (svgRect.left - containerRect.left) + coords.x * scaleX;
+      anchorY = (svgRect.top - containerRect.top) + coords.y * scaleY;
+    }
+
+    const tooltipWidth = 220;
+    const tooltipHeight = 110;
+    const padding = 12;
+    const gap = 14;
+
+    let left = anchorX + gap;
+    let placement: 'left' | 'right' | 'top' | 'bottom' = 'right';
+
+    // Collision detection: when triggering node is near right edge (e.g. POLICY at x=400 in 460 viewBox),
+    // detect overflow and flip to open LEFT of the node!
+    if (left + tooltipWidth > containerRect.width - padding) {
+      left = anchorX - gap - tooltipWidth;
+      placement = 'left';
+    }
+
+    if (left < padding) {
+      left = Math.max(padding, anchorX - tooltipWidth / 2);
+    }
+
+    let top = anchorY - tooltipHeight / 2;
+
+    // Collision detection on vertical axis:
+    // If overflowing bottom edge, flip to open TOP!
+    if (top + tooltipHeight > containerRect.height - padding) {
+      top = anchorY - gap - tooltipHeight;
+      placement = 'top';
+    }
+
+    if (top < padding) {
+      top = Math.min(padding, anchorY + gap);
+    }
+
+    // Boundary clamping to strictly guarantee tooltip stays within container bounds
+    const clampedLeft = Math.max(padding, Math.min(left, containerRect.width - tooltipWidth - padding));
+    const clampedTop = Math.max(padding, Math.min(top, containerRect.height - tooltipHeight - padding));
+
+    setTooltipPos({ left: clampedLeft, top: clampedTop, placement });
+  }, [inspectedNode]);
+
+  useEffect(() => {
+    updateTooltipPosition();
+    window.addEventListener('resize', updateTooltipPosition);
+    return () => window.removeEventListener('resize', updateTooltipPosition);
+  }, [updateTooltipPosition]);
+
   const activeThreat = dynamicThreatFeed[selectedThreatIdx] || dynamicThreatFeed[0];
 
   // Spotlight Warning (Top Priority Item)
@@ -146,7 +298,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   // 1. LOADING SKELETON
   if (loading && !overview) {
     return (
-      <div className="p-6 lg:p-8 space-y-6 max-w-7xl mx-auto animate-pulse">
+      <div className="p-6 lg:p-8 space-y-6 w-full min-w-0 animate-pulse">
         {/* Header Skeleton */}
         <div className="bg-white dark:bg-[#0B0F19] p-6 rounded-2xl border border-slate-200 dark:border-slate-800 flex justify-between items-center">
           <div className="space-y-2">
@@ -191,7 +343,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   }
 
   return (
-    <div className="p-6 lg:p-8 space-y-6 max-w-7xl mx-auto transition-colors duration-200">
+    <div className="p-6 lg:p-8 space-y-6 w-full min-w-0 transition-colors duration-200">
       
       {/* ERROR STATE BANNER */}
       {error && (
@@ -679,59 +831,26 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             )}
           </div>
 
-          <div className="space-y-2 max-h-[380px] overflow-y-auto">
+          <div className="space-y-2 max-h-[380px] overflow-y-auto min-w-0">
             {dynamicThreatFeed.length === 0 ? (
               <div className="p-8 text-center text-slate-400 text-xs">
                 No threat advisories currently ingested.
               </div>
             ) : (
-              dynamicThreatFeed.map((item, idx) => {
-                const isSelected = idx === selectedThreatIdx;
-                return (
-                  <div
-                    key={item.id + idx}
-                    onClick={() => setSelectedThreatIdx(idx)}
-                    className={`p-3 rounded-xl border transition-all cursor-pointer ${
-                      isSelected
-                        ? 'bg-blue-50/70 dark:bg-blue-950/40 border-blue-400 shadow-xs ring-1 ring-blue-400'
-                        : 'bg-slate-50/60 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-1">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
-                          {item.src}
-                        </span>
-                        <span className="font-mono text-xs font-bold text-slate-800 dark:text-slate-200">
-                          {item.id}
-                        </span>
-                      </div>
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                        item.sev === 'Critical'
-                          ? 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400'
-                          : 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400'
-                      }`}>
-                        {item.sev}
-                      </span>
-                    </div>
-
-                    <h5 className="font-bold text-xs text-slate-900 dark:text-white truncate">
-                      {item.title}
-                    </h5>
-
-                    <div className="flex items-center justify-between text-[11px] text-slate-500 mt-1 font-mono">
-                      <span>Target: <strong className="text-slate-700 dark:text-slate-300">{item.asset.split('.')[0]}</strong></span>
-                      <span className="font-bold text-red-600 dark:text-red-400">Risk: {item.score.toFixed(1)}</span>
-                    </div>
-                  </div>
-                );
-              })
+              dynamicThreatFeed.map((item, idx) => (
+                <ThreatFeedCardItem
+                  key={item.id + idx}
+                  item={item}
+                  isSelected={idx === selectedThreatIdx}
+                  onClick={() => setSelectedThreatIdx(idx)}
+                />
+              ))
             )}
           </div>
         </div>
 
         {/* Right Column: Radial Graph (7 Cols) */}
-        <div className="lg:col-span-7 bg-white dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-3">
+        <div className="lg:col-span-7 bg-white dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-3 min-w-0">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
             <div className="flex items-center gap-2">
               <Network className="w-4 h-4 text-purple-600 dark:text-purple-400" />
@@ -756,9 +875,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           </div>
 
           {/* Radial Graph Visual Canvas */}
-          <div className="relative bg-slate-50/70 dark:bg-slate-950/60 rounded-xl p-4 border border-slate-200 dark:border-slate-800 min-h-[340px] flex items-center justify-center overflow-hidden">
+          <div ref={graphContainerRef} className="relative bg-slate-50/70 dark:bg-slate-950/60 rounded-xl p-4 border border-slate-200 dark:border-slate-800 min-h-[340px] flex items-center justify-center overflow-hidden">
             {activeThreat ? (
-              <svg viewBox="0 0 460 300" className="w-full max-w-[460px] h-72">
+              <svg ref={svgRef} viewBox="0 0 460 300" className="w-full max-w-[460px] h-72 select-none">
                 <line x1="230" y1="150" x2="80" y2="70" stroke="#94A3B8" strokeWidth="1.5" strokeDasharray="3 3" />
                 <line x1="230" y1="150" x2="380" y2="70" stroke="#94A3B8" strokeWidth="1.5" strokeDasharray="3 3" />
                 <line x1="230" y1="150" x2="60" y2="180" stroke="#94A3B8" strokeWidth="1.5" strokeDasharray="3 3" />
@@ -766,10 +885,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                 <line x1="230" y1="150" x2="140" y2="250" stroke="#94A3B8" strokeWidth="1.5" strokeDasharray="3 3" />
                 <line x1="230" y1="150" x2="320" y2="250" stroke="#94A3B8" strokeWidth="1.5" strokeDasharray="3 3" />
 
-                {/* Central Threat Node */}
-                <g className="cursor-pointer" onClick={() => setInspectedNode('THREAT')}>
-                  <circle cx="230" cy="150" r="34" fill="#EF4444" opacity="0.2" className="animate-ping" />
-                  <circle cx="230" cy="150" r="28" fill="#EF4444" stroke="#DC2626" strokeWidth="2" />
+                {/* Central Threat Node: Clean exact node without stray unconstrained pulsing circle */}
+                <g className="cursor-pointer" onClick={() => setInspectedNode(prev => prev === 'THREAT' ? null : 'THREAT')}>
+                  <circle cx="230" cy="150" r={inspectedNode === 'THREAT' ? 30 : 28} fill="#EF4444" stroke="#DC2626" strokeWidth={inspectedNode === 'THREAT' ? 3 : 2} />
                   <text x="230" y="147" textAnchor="middle" fill="#FFFFFF" fontSize="8" fontWeight="bold" fontFamily="monospace">
                     {activeThreat.id.length > 12 ? activeThreat.id.slice(0, 10) + '..' : activeThreat.id}
                   </text>
@@ -779,48 +897,48 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                 </g>
 
                 {/* Satellite Nodes */}
-                <g className="cursor-pointer" onClick={() => setInspectedNode('ASSET')}>
-                  <circle cx="80" cy="70" r="18" fill="#3B82F6" stroke="#2563EB" strokeWidth="1.5" />
+                <g className="cursor-pointer" onClick={() => setInspectedNode(prev => prev === 'ASSET' ? null : 'ASSET')}>
+                  <circle cx="80" cy="70" r={inspectedNode === 'ASSET' ? 20 : 18} fill="#3B82F6" stroke="#2563EB" strokeWidth={inspectedNode === 'ASSET' ? 2.5 : 1.5} />
                   <text x="80" y="74" textAnchor="middle" fill="#FFFFFF" fontSize="8" fontWeight="bold">Asset</text>
                   <text x="80" y="98" textAnchor="middle" fill="#64748B" fontSize="8" fontWeight="500" fontFamily="monospace">
                     {activeThreat.asset.split('.')[0].length > 12 ? activeThreat.asset.split('.')[0].slice(0, 10) + '..' : activeThreat.asset.split('.')[0]}
                   </text>
                 </g>
 
-                <g className="cursor-pointer" onClick={() => setInspectedNode('INTEL')}>
-                  <circle cx="380" cy="70" r="18" fill="#F59E0B" stroke="#D97706" strokeWidth="1.5" />
+                <g className="cursor-pointer" onClick={() => setInspectedNode(prev => prev === 'INTEL' ? null : 'INTEL')}>
+                  <circle cx="380" cy="70" r={inspectedNode === 'INTEL' ? 20 : 18} fill="#F59E0B" stroke="#D97706" strokeWidth={inspectedNode === 'INTEL' ? 2.5 : 1.5} />
                   <text x="380" y="74" textAnchor="middle" fill="#FFFFFF" fontSize="8" fontWeight="bold">Source</text>
                   <text x="380" y="98" textAnchor="middle" fill="#64748B" fontSize="8" fontWeight="500" fontFamily="monospace">
                     {activeThreat.src.length > 12 ? activeThreat.src.slice(0, 10) + '..' : activeThreat.src}
                   </text>
                 </g>
 
-                <g className="cursor-pointer" onClick={() => setInspectedNode('IP')}>
-                  <circle cx="60" cy="180" r="18" fill="#EC4899" stroke="#DB2777" strokeWidth="1.5" />
+                <g className="cursor-pointer" onClick={() => setInspectedNode(prev => prev === 'IP' ? null : 'IP')}>
+                  <circle cx="60" cy="180" r={inspectedNode === 'IP' ? 20 : 18} fill="#EC4899" stroke="#DB2777" strokeWidth={inspectedNode === 'IP' ? 2.5 : 1.5} />
                   <text x="60" y="184" textAnchor="middle" fill="#FFFFFF" fontSize="8" fontWeight="bold">IP IOC</text>
                   <text x="60" y="208" textAnchor="middle" fill="#64748B" fontSize="8" fontWeight="500" fontFamily="monospace">
                     {activeThreat.ip}
                   </text>
                 </g>
 
-                <g className="cursor-pointer" onClick={() => setInspectedNode('POLICY')}>
-                  <circle cx="400" cy="180" r="18" fill="#10B981" stroke="#059669" strokeWidth="1.5" />
+                <g className="cursor-pointer" onClick={() => setInspectedNode(prev => prev === 'POLICY' ? null : 'POLICY')}>
+                  <circle cx="400" cy="180" r={inspectedNode === 'POLICY' ? 20 : 18} fill="#10B981" stroke="#059669" strokeWidth={inspectedNode === 'POLICY' ? 2.5 : 1.5} />
                   <text x="400" y="184" textAnchor="middle" fill="#FFFFFF" fontSize="8" fontWeight="bold">Policy</text>
                   <text x="400" y="208" textAnchor="middle" fill="#64748B" fontSize="8" fontWeight="500" fontFamily="monospace">
                     {activeThreat.policy.split('_')[0]}
                   </text>
                 </g>
 
-                <g className="cursor-pointer" onClick={() => setInspectedNode('VECTOR')}>
-                  <circle cx="140" cy="250" r="18" fill="#06B6D4" stroke="#0891B2" strokeWidth="1.5" />
+                <g className="cursor-pointer" onClick={() => setInspectedNode(prev => prev === 'VECTOR' ? null : 'VECTOR')}>
+                  <circle cx="140" cy="250" r={inspectedNode === 'VECTOR' ? 20 : 18} fill="#06B6D4" stroke="#0891B2" strokeWidth={inspectedNode === 'VECTOR' ? 2.5 : 1.5} />
                   <text x="140" y="254" textAnchor="middle" fill="#FFFFFF" fontSize="8" fontWeight="bold">Product</text>
                   <text x="140" y="278" textAnchor="middle" fill="#64748B" fontSize="8" fontWeight="500" fontFamily="monospace">
                     {activeThreat.product.length > 12 ? activeThreat.product.slice(0, 10) + '..' : activeThreat.product}
                   </text>
                 </g>
 
-                <g className="cursor-pointer" onClick={() => setInspectedNode('STATUS')}>
-                  <circle cx="320" cy="250" r="18" fill="#8B5CF6" stroke="#7C3AED" strokeWidth="1.5" />
+                <g className="cursor-pointer" onClick={() => setInspectedNode(prev => prev === 'STATUS' ? null : 'STATUS')}>
+                  <circle cx="320" cy="250" r={inspectedNode === 'STATUS' ? 20 : 18} fill="#8B5CF6" stroke="#7C3AED" strokeWidth={inspectedNode === 'STATUS' ? 2.5 : 1.5} />
                   <text x="320" y="254" textAnchor="middle" fill="#FFFFFF" fontSize="8" fontWeight="bold">Status</text>
                   <text x="320" y="278" textAnchor="middle" fill="#64748B" fontSize="8" fontWeight="500" fontFamily="monospace">
                     {activeThreat.status}
@@ -833,17 +951,26 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
               </div>
             )}
 
-            {/* Inspect Overlay */}
+            {/* Inspect Overlay with Boundary Clamping & Edge Collision Detection */}
             {inspectedNode && activeThreat && (
-              <div className="absolute top-3 right-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3.5 rounded-xl shadow-lg max-w-[210px] text-xs space-y-1.5 animate-in fade-in duration-150">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-[11px] text-slate-800 dark:text-slate-200">
+              <div
+                style={{
+                  position: 'absolute',
+                  left: `${tooltipPos.left}px`,
+                  top: `${tooltipPos.top}px`,
+                  width: '220px'
+                }}
+                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3 rounded-xl shadow-xl text-xs space-y-1.5 animate-in fade-in duration-150 z-30 pointer-events-auto"
+              >
+                <div className="flex items-center justify-between pb-1 border-b border-slate-100 dark:border-slate-800">
+                  <span className="font-bold text-[11px] text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-blue-500"></span>
                     {inspectedNode} Node Details
                   </span>
-                  <button onClick={() => setInspectedNode(null)} className="text-slate-400 hover:text-slate-600 text-xs">✕</button>
+                  <button onClick={() => setInspectedNode(null)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xs p-0.5">✕</button>
                 </div>
-                <div className="text-[11px] text-slate-600 dark:text-slate-400 font-mono">
-                  {inspectedNode === 'THREAT' && `CVE: ${activeThreat.id} | Score: ${activeThreat.score}`}
+                <div className="text-[11px] text-slate-600 dark:text-slate-400 font-mono leading-relaxed">
+                  {inspectedNode === 'THREAT' && `CVE: ${activeThreat.id} | Score: ${activeThreat.score.toFixed(1)}`}
                   {inspectedNode === 'ASSET' && `Host: ${activeThreat.asset} (Tier-1 PROD)`}
                   {inspectedNode === 'INTEL' && `Feed: ${activeThreat.src} (Verified Feed)`}
                   {inspectedNode === 'IP' && `Attacker IOC: ${activeThreat.ip}`}

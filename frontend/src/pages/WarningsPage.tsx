@@ -160,7 +160,7 @@ export const WarningsPage: React.FC<WarningsPageProps> = ({
   // 1. LOADING SKELETON
   if (loading && warnings.length === 0) {
     return (
-      <div className="p-6 lg:p-8 space-y-6 max-w-7xl mx-auto animate-pulse">
+      <div className="p-6 lg:p-8 space-y-6 w-full min-w-0 animate-pulse">
         <div className="bg-white dark:bg-[#0B0F19] p-6 rounded-2xl border border-slate-200 dark:border-slate-800 flex justify-between items-center">
           <div className="space-y-2">
             <div className="h-4 w-48 bg-slate-200 dark:bg-slate-800 rounded"></div>
@@ -185,7 +185,7 @@ export const WarningsPage: React.FC<WarningsPageProps> = ({
   }
 
   return (
-    <div className="p-6 lg:p-8 space-y-6 max-w-7xl mx-auto transition-colors duration-200">
+    <div className="p-6 lg:p-8 space-y-6 w-full min-w-0 transition-colors duration-200">
       {/* Error state banner */}
       {(error || detailError) && (
         <div className="p-4 rounded-xl bg-red-50 dark:bg-red-950/60 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 text-xs flex items-center justify-between shadow-sm">

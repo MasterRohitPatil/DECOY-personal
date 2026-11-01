@@ -211,7 +211,7 @@ export const AttackLabPage: React.FC = () => {
   };
 
   return (
-    <div className="p-6 lg:p-8 space-y-6 max-w-7xl mx-auto transition-colors duration-200">
+    <div className="p-6 lg:p-8 space-y-6 w-full min-w-0 transition-colors duration-200">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-[#0B0F19] p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm transition-colors duration-200">
         <div>
