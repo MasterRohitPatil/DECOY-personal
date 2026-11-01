@@ -3,6 +3,7 @@ import json
 import csv
 import io
 import os
+import smtplib
 import hashlib
 from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
