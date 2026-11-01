@@ -80,6 +80,10 @@ export const api = {
     return await apiFetch<WarningDetail>(`/warnings/${encodeURIComponent(id)}`);
   },
 
+  getWarningPdfUrl(warningId: string): string {
+    return `${API_BASE}/warnings/${encodeURIComponent(warningId)}/pdf`;
+  },
+
   async getAiBrief(id: string): Promise<any> {
     return await apiFetch<any>(`/warnings/${encodeURIComponent(id)}/ai-brief`);
   },

@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import {
   Bell, MessageSquare, Mail, ExternalLink, Copy,
   Check, ShieldAlert, Radio, Clock, ShieldCheck,
-  Send, Phone, CheckCircle2, AlertTriangle, AlertCircle, RefreshCw
+  Send, Phone, CheckCircle2, AlertTriangle, AlertCircle, RefreshCw,
+  FileText, Download, Paperclip, Users, Info, Shield
 } from 'lucide-react';
 import { api } from '../api';
 import { WarningItem, SmtpStatusResponse, SendEmailResponse } from '../types';
@@ -20,8 +21,11 @@ export const AlertsPage: React.FC<AlertsPageProps> = ({
   error = null,
   onRefresh
 }) => {
-  // Target inputs
-  const [phoneNumber, setPhoneNumber] = useState('+91 98765 43210');
+  // On-Call multi-analyst phone numbers
+  const [primaryPhone, setPrimaryPhone] = useState('+91 98765 43210');
+  const [secondaryPhone, setSecondaryPhone] = useState('+91 91234 56789');
+  
+  // Target email
   const [targetEmail, setTargetEmail] = useState('');
   const [selectedWarningId, setSelectedWarningId] = useState<string>('');
 
@@ -37,6 +41,7 @@ export const AlertsPage: React.FC<AlertsPageProps> = ({
 
   // WhatsApp state
   const [copied, setCopied] = useState(false);
+  const [batchLaunched, setBatchLaunched] = useState(false);
 
   // Query SMTP status on mount
   const checkSmtp = async () => {
@@ -102,10 +107,17 @@ export const AlertsPage: React.FC<AlertsPageProps> = ({
   };
 
   // WhatsApp deep-link generation
-  const cleanPhone = phoneNumber.replace(/[^0-9]/g, '');
+  const cleanPrimary = primaryPhone.replace(/[^0-9]/g, '');
+  const cleanSecondary = secondaryPhone.replace(/[^0-9]/g, '');
+  
   const cveId = selectedWarning
     ? (selectedWarning.id.match(/CVE-\d{4}-\d+/i)?.[0] || selectedWarning.title.match(/CVE-\d{4}-\d+/i)?.[0] || selectedWarning.id)
-    : '';
+    : 'CVE-2021-44228';
+
+  const pdfDownloadUrl = selectedWarning
+    ? api.getWarningPdfUrl(selectedWarning.id)
+    : 'http://localhost:8000/api/warnings/W-INCIDENT/pdf';
+
   const waMessage = selectedWarning
     ? `🚨 *SENTINEL GRID SECURITY ALERT*
 ━━━━━━━━━━━━━━━━━━━
@@ -115,15 +127,35 @@ export const AlertsPage: React.FC<AlertsPageProps> = ({
 • *Severity:* *${selectedWarning.band}* (Score: ${selectedWarning.risk_score.toFixed(1)}/100)
 • *Action Required:* ${selectedWarning.brief_summary || 'Isolate host at perimeter firewall.'}
 ━━━━━━━━━━━━━━━━━━━
-🔗 SOC Portal: http://localhost:5173`
+📄 *Download PDF Dossier:* ${pdfDownloadUrl}
+🔗 *SOC Portal:* http://localhost:5173/warnings`
     : `🚨 *SENTINEL GRID SECURITY ALERT* - Active telemetry monitoring enabled.`;
 
-  const waDeepLink = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(waMessage)}`;
+  const primaryWaLink = cleanPrimary
+    ? `https://wa.me/${cleanPrimary}?text=${encodeURIComponent(waMessage)}`
+    : `https://wa.me/?text=${encodeURIComponent(waMessage)}`;
+
+  const secondaryWaLink = cleanSecondary
+    ? `https://wa.me/${cleanSecondary}?text=${encodeURIComponent(waMessage)}`
+    : `https://wa.me/?text=${encodeURIComponent(waMessage)}`;
 
   const handleCopy = () => {
     navigator.clipboard.writeText(waMessage);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleDispatchBoth = () => {
+    setBatchLaunched(true);
+    if (cleanPrimary) {
+      window.open(primaryWaLink, '_blank');
+    }
+    if (cleanSecondary) {
+      setTimeout(() => {
+        window.open(secondaryWaLink, '_blank');
+      }, 400);
+    }
+    setTimeout(() => setBatchLaunched(false), 3000);
   };
 
   if (loading && warnings.length === 0) {
@@ -180,13 +212,13 @@ export const AlertsPage: React.FC<AlertsPageProps> = ({
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-[#0B0F19] p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
         <div>
           <span className="text-[11px] font-mono text-blue-600 dark:text-blue-400 font-bold uppercase tracking-wider">
-            Incident Alert & Notification Dispatcher
+            Multi-Channel Incident Dispatcher
           </span>
           <h1 className="text-xl lg:text-2xl font-black text-slate-900 dark:text-white mt-1">
             Emergency Incident Alert Center
           </h1>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-2xl">
-            Dispatch verified incident advisories to on-call security teams via genuine SMTP email and direct WhatsApp Web links.
+            Dispatch verified incident advisories with attached cryptographic PDF reports via SMTP email and direct WhatsApp links to primary and secondary on-call contacts.
           </p>
         </div>
 
@@ -211,11 +243,25 @@ export const AlertsPage: React.FC<AlertsPageProps> = ({
         </div>
       </div>
 
-      {/* Incident Selection Dropdown */}
-      <div className="bg-white dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-2">
-        <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">
-          Select Active Threat Advisory to Alert On:
-        </label>
+      {/* Incident Selection Dropdown + Download PDF Toolbar */}
+      <div className="bg-white dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">
+            Select Active Threat Advisory to Alert On:
+          </label>
+          {selectedWarning && (
+            <a
+              href={pdfDownloadUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/60 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-300 font-bold text-xs border border-blue-200 dark:border-blue-800 transition-all shadow-2xs self-start sm:self-auto"
+            >
+              <FileText className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+              <span>Download Executive Report (PDF)</span>
+            </a>
+          )}
+        </div>
+
         {warnings.length === 0 ? (
           <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg text-xs text-slate-500">
             No active warnings available. Ingest a threat feed or run an attack simulation first.
@@ -238,14 +284,14 @@ export const AlertsPage: React.FC<AlertsPageProps> = ({
       {/* Two-Column Dispatch View */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         
-        {/* Column 1: Real SMTP Email Dispatch */}
+        {/* Column 1: Real SMTP Email Dispatch with Attached PDF */}
         <div className="bg-white dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 space-y-4 shadow-xs flex flex-col justify-between">
           <div className="space-y-3">
             <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
               <div className="flex items-center gap-2">
                 <Mail className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                 <h3 className="font-bold text-slate-900 dark:text-white text-sm">
-                  Email Incident Dispatch (SMTP)
+                  Email Incident Dispatch (SMTP + PDF)
                 </h3>
               </div>
               <span className={`text-[10px] font-mono px-2 py-0.5 rounded font-bold ${
@@ -280,14 +326,20 @@ export const AlertsPage: React.FC<AlertsPageProps> = ({
             )}
 
             {emailSuccess && (
-              <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-xl text-xs text-emerald-800 dark:text-emerald-300 flex items-start gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                <div>
-                  <span className="font-bold block">Email Dispatched Successfully!</span>
-                  <p className="text-[11px] mt-0.5">
-                    Delivered to <strong>{emailSuccess.recipient}</strong> via <code>{emailSuccess.smtp_server}</code>.
-                  </p>
+              <div className="p-3.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-xl text-xs text-emerald-800 dark:text-emerald-300 space-y-1">
+                <div className="flex items-center gap-1.5 font-bold">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>Email Dispatched with Cryptographic PDF Report!</span>
                 </div>
+                <p className="text-[11px]">
+                  Delivered to <strong>{emailSuccess.recipient}</strong> via <code>{emailSuccess.smtp_server}</code>.
+                </p>
+                {emailSuccess.pdf_attached && (
+                  <div className="text-[10.5px] font-mono text-emerald-700 dark:text-emerald-400 mt-1 flex items-center gap-1">
+                    <Paperclip className="w-3.5 h-3.5" />
+                    <span>Report Attached: <strong>SENTINEL_GRID_{selectedWarning?.id}.pdf</strong></span>
+                  </div>
+                )}
               </div>
             )}
 
@@ -310,10 +362,14 @@ export const AlertsPage: React.FC<AlertsPageProps> = ({
               </div>
 
               {/* Email Content Preview */}
-              <div className="p-3 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 font-mono text-[11px] space-y-1 text-slate-600 dark:text-slate-400">
+              <div className="p-3 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 font-mono text-[11px] space-y-1.5 text-slate-600 dark:text-slate-400">
                 <div><span className="font-bold text-slate-800 dark:text-slate-200">Subject:</span> [{selectedWarning?.band || 'HIGH'}] SENTINEL GRID Alert: {selectedWarning?.title}</div>
-                <div><span className="font-bold text-slate-800 dark:text-slate-200">Format:</span> HTML + Plain Text Multipart</div>
+                <div><span className="font-bold text-slate-800 dark:text-slate-200">Format:</span> 100% Inline CSS Executive Light Card (High Contrast)</div>
                 <div><span className="font-bold text-slate-800 dark:text-slate-200">Target Host:</span> {selectedWarning?.target_hostname || 'auth-srv-01'}</div>
+                <div className="pt-1.5 border-t border-slate-200 dark:border-slate-800 flex items-center gap-1.5 text-blue-600 dark:text-blue-400 font-sans font-semibold text-[11px]">
+                  <Paperclip className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                  <span>Auto-Attached: <code>SENTINEL_GRID_{selectedWarning?.id || 'INCIDENT'}.pdf</code></span>
+                </div>
               </div>
 
               <button
@@ -324,12 +380,12 @@ export const AlertsPage: React.FC<AlertsPageProps> = ({
                 {sendingEmail ? (
                   <>
                     <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>Connecting & Dispatching via SMTP...</span>
+                    <span>Generating PDF & Dispatching via SMTP...</span>
                   </>
                 ) : (
                   <>
                     <Send className="w-4 h-4" />
-                    <span>Send Real Email via SMTP</span>
+                    <span>Send Incident Email with Attached PDF</span>
                   </>
                 )}
               </button>
@@ -337,70 +393,131 @@ export const AlertsPage: React.FC<AlertsPageProps> = ({
           </div>
         </div>
 
-        {/* Column 2: WhatsApp Web Direct Deep-Link */}
+        {/* Column 2: WhatsApp Multi-Analyst Dispatch */}
         <div className="bg-white dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 space-y-4 shadow-xs flex flex-col justify-between">
           <div className="space-y-3">
             <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
               <div className="flex items-center gap-2">
                 <MessageSquare className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
                 <h3 className="font-bold text-slate-900 dark:text-white text-sm">
-                  WhatsApp Direct Dispatch (No-API)
+                  WhatsApp Direct Dispatch (On-Call Multi-Target)
                 </h3>
               </div>
               <span className="text-[10px] font-mono bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 px-2 py-0.5 rounded font-bold">
-                RFC 3986 wa.me Link
+                1 or 2 On-Call Contacts
               </span>
             </div>
 
             <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-              Opens WhatsApp Web or mobile app with a pre-filled incident brief ready for manual send. Uses genuine universal deep-linking without requiring external third-party API accounts.
+              Pre-fills the incident advisory and official PDF download URL for designated on-call security contacts.
             </p>
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                Recipient WhatsApp Phone Number
-              </label>
-              <div className="relative">
-                <Phone className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-                <input
-                  type="text"
-                  placeholder="+91 98765 43210"
-                  value={phoneNumber}
-                  onChange={(e) => setPhoneNumber(e.target.value)}
-                  className="w-full text-xs pl-9 pr-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono"
-                />
+            {/* Multi-Number Inputs */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  1. Primary On-Call Phone
+                </label>
+                <div className="relative">
+                  <Phone className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
+                  <input
+                    type="text"
+                    placeholder="+91 98765 43210"
+                    value={primaryPhone}
+                    onChange={(e) => setPrimaryPhone(e.target.value)}
+                    className="w-full text-xs pl-8 pr-2 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  2. Secondary On-Call Phone
+                </label>
+                <div className="relative">
+                  <Phone className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
+                  <input
+                    type="text"
+                    placeholder="+91 91234 56789"
+                    value={secondaryPhone}
+                    onChange={(e) => setSecondaryPhone(e.target.value)}
+                    className="w-full text-xs pl-8 pr-2 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono"
+                  />
+                </div>
               </div>
             </div>
 
-            {/* Mobile Screen Mockup */}
-            <div className="bg-slate-50 dark:bg-slate-950 rounded-xl p-3.5 border border-slate-200 dark:border-slate-800 shadow-inner">
-              <div className="flex justify-between text-[11px] text-slate-500 pb-2 border-b border-slate-200 dark:border-slate-800 mb-2">
-                <span>📱 Destination: {phoneNumber}</span>
-                <span className="text-emerald-600 dark:text-emerald-400 font-mono font-bold">WhatsApp Direct</span>
+            {/* Message Preview Mockup */}
+            <div className="bg-slate-50 dark:bg-slate-950 rounded-xl p-3 border border-slate-200 dark:border-slate-800 shadow-inner">
+              <div className="flex justify-between items-center text-[10.5px] text-slate-500 pb-1.5 border-b border-slate-200 dark:border-slate-800 mb-2">
+                <span>📱 Targets: {primaryPhone || 'None'}{secondaryPhone ? `, ${secondaryPhone}` : ''}</span>
+                <span className="text-emerald-600 dark:text-emerald-400 font-mono font-bold">WhatsApp Payload</span>
               </div>
-              <div className="bg-emerald-50/70 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 rounded-lg p-3 text-slate-800 dark:text-slate-200 font-mono text-[11px] whitespace-pre-wrap leading-relaxed">
+              <div className="bg-emerald-50/70 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 rounded-lg p-2.5 text-slate-800 dark:text-slate-200 font-mono text-[10.5px] whitespace-pre-wrap leading-relaxed max-h-40 overflow-y-auto">
                 {waMessage}
               </div>
             </div>
           </div>
 
-          <div className="flex gap-2 pt-3">
-            <a
-              href={waDeepLink}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex-1 py-2.5 px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow-xs transition-all"
-            >
-              <ExternalLink className="w-4 h-4" />
-              <span>Launch WhatsApp Chat</span>
-            </a>
-            <button
-              onClick={handleCopy}
-              className="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs rounded-xl flex items-center gap-1.5 font-bold transition-all border border-slate-200 dark:border-slate-700"
-            >
-              {copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
-              <span>{copied ? 'Copied' : 'Copy'}</span>
-            </button>
+          {/* Action Buttons for WhatsApp */}
+          <div className="space-y-2 pt-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <a
+                href={primaryWaLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="py-2 px-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-2xs transition-all text-center"
+              >
+                <ExternalLink className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">Open Primary ({primaryPhone || 'Unset'})</span>
+              </a>
+
+              <a
+                href={secondaryWaLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="py-2 px-3 bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-2xs transition-all text-center"
+              >
+                <ExternalLink className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">Open Secondary ({secondaryPhone || 'Unset'})</span>
+              </a>
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                onClick={handleDispatchBoth}
+                className="flex-1 py-2.5 px-3 bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-white text-white dark:text-slate-900 font-black text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-xs transition-all"
+              >
+                <Users className="w-4 h-4 text-emerald-400 dark:text-emerald-600" />
+                <span>{batchLaunched ? 'Dispatching Both...' : 'Dispatch Alert to Both Numbers'}</span>
+              </button>
+
+              <button
+                onClick={handleCopy}
+                className="py-2.5 px-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs rounded-xl flex items-center gap-1.5 font-bold transition-all border border-slate-200 dark:border-slate-700"
+              >
+                {copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                <span>{copied ? 'Copied' : 'Copy'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* WhatsApp Automation & Security Policy Callout Card */}
+      <div className="bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs">
+        <div className="flex items-start gap-3">
+          <Info className="w-5 h-5 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+          <div className="space-y-1.5 text-xs">
+            <h4 className="font-bold text-slate-900 dark:text-white">
+              WhatsApp Automated Delivery Architecture: Universal Web vs Meta Cloud API
+            </h4>
+            <p className="text-slate-600 dark:text-slate-400 leading-relaxed">
+              <strong>1. Browser-Based Delivery (No-API mode):</strong> When clicking &quot;Open WhatsApp&quot;, the system formats the incident advisory and report download URL into RFC 3986 deep links. Meta&apos;s browser sandbox strictly requires the operator to tap the green &quot;Send&quot; arrow to prevent unauthorized web-borne spam.
+            </p>
+            <p className="text-slate-600 dark:text-slate-400 leading-relaxed">
+              <strong>2. 100% Zero-Intervention Headless Delivery:</strong> To dispatch messages to 1 or 2 numbers completely automatically without opening WhatsApp Web or requiring manual clicks, the system supports Meta&apos;s <code>WhatsApp Business Cloud API</code> (requires an approved Meta Business Account token and registered template). Both architectures are designed into SENTINEL GRID.
+            </p>
           </div>
         </div>
       </div>

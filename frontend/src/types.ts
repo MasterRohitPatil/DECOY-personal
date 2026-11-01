@@ -142,6 +142,7 @@ export interface SendEmailResponse {
   recipient: string;
   smtp_server: string;
   subject: string;
+  pdf_attached?: boolean;
 }
 
 export interface UserProfile {

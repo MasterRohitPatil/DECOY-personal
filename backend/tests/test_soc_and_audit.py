@@ -25,7 +25,7 @@ def test_smtp_status_endpoint():
 
 def test_whatsapp_link_endpoint():
     response = client.post("/api/alerts/whatsapp-link", json={
-        "phone": "+919876543210",
+        "phones": ["+91 98765 43210", "+91 91234 56789"],
         "title": "Critical NGINX RCE",
         "warning_id": "W-2026-001",
         "target_hostname": "auth-srv-01",
@@ -37,4 +37,20 @@ def test_whatsapp_link_endpoint():
     assert response.status_code == 200
     data = response.json()
     assert "wa_deep_link" in data
-    assert "wa.me/919876543210" in data["wa_deep_link"]
+    assert "contacts" in data
+    assert len(data["contacts"]) == 2
+    assert "919876543210" in data["contacts"][0]["clean"]
+    assert "919123456789" in data["contacts"][1]["clean"]
+
+def test_warning_pdf_download_endpoint():
+    # First get warnings
+    w_res = client.get("/api/warnings")
+    assert w_res.status_code == 200
+    warnings = w_res.json()
+    if warnings:
+        target_id = warnings[0]["id"]
+        pdf_res = client.get(f"/api/warnings/{target_id}/pdf")
+        assert pdf_res.status_code == 200
+        assert pdf_res.headers["content-type"] == "application/pdf"
+        assert pdf_res.content.startswith(b"%PDF")
+        assert len(pdf_res.content) > 1000

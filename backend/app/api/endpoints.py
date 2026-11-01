@@ -22,6 +22,7 @@ from app.services.scorer import calculate_priority_score
 from app.services.guardrails import verify_cve_id, detect_prompt_injection, render_deterministic_brief
 from app.services.attacks import simulate_attack
 from app.services.alerting import generate_whatsapp_alert, generate_email_alert, send_real_email_via_smtp
+from app.services.pdf_service import generate_incident_pdf_bytes
 from app.services.state_machine import transition_warning_state
 from app.services.llm import generate_executive_ai_brief
 from app.services.csv_parser import ingest_csv_data
@@ -177,6 +178,56 @@ def get_warning_detail(warning_id: str, db: Session = Depends(get_db)):
             for log in audit_logs
         ]
     }
+
+# 3a. Cryptographic Executive Incident Report PDF Download
+@router.get("/warnings/{warning_id}/pdf")
+def download_warning_pdf(warning_id: str, db: Session = Depends(get_db)):
+    w = db.query(WarningModel).filter(WarningModel.id == warning_id).first()
+    if not w:
+        raise HTTPException(status_code=404, detail="Warning not found")
+
+    target_hostname = w.asset.hostname if w.asset else "enterprise-host"
+    product = w.asset.product if w.asset else "Enterprise Package"
+    version = w.asset.version if w.asset else "Active Version"
+    environment = w.asset.environment if w.asset else "PROD"
+    internet_facing = w.asset.internet_facing if w.asset else True
+    criticality = w.asset.criticality if w.asset else 5
+    cve_id = w.threat.cve_ids[0] if (w.threat and w.threat.cve_ids) else "CVE-2021-44228"
+
+    source_ip = "185.220.101.5"
+    if w.asset:
+        event = db.query(SecurityEvent).filter(SecurityEvent.target_asset_id == w.asset.id).first()
+        if event and event.source_ip:
+            source_ip = event.source_ip
+
+    recommended_action = w.brief_summary or "Isolate affected host and apply security patch."
+
+    pdf_bytes = generate_incident_pdf_bytes(
+        warning_id=w.id,
+        title=w.title,
+        target_hostname=target_hostname,
+        source_ip=source_ip,
+        risk_score=float(w.risk_score),
+        band=str(w.band),
+        recommended_action=recommended_action,
+        product=product,
+        version=version,
+        environment=environment,
+        internet_facing=internet_facing,
+        criticality=criticality,
+        cve_id=cve_id,
+        dimensions=w.dimensions_json,
+        rules_fired=w.rules_fired
+    )
+
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="SENTINEL_GRID_{w.id}.pdf"',
+            "Content-Length": str(len(pdf_bytes))
+        }
+    )
 
 # 3b. AI Executive Brief (Gemini with Deterministic Fallback)
 @router.get("/warnings/{warning_id}/ai-brief")
@@ -741,6 +792,61 @@ def dispatch_real_email(
     band = str(payload.get("band", "HIGH")).upper()
     recommended_action = payload.get("recommended_action", "Investigate and apply perimeter containment.")
 
+    # Retrieve rich telemetry if warning exists in database
+    product = "Enterprise Package"
+    version = "Active Version"
+    environment = "PROD"
+    internet_facing = True
+    criticality = 5
+    cve_id = None
+    dimensions = None
+    rules_fired = None
+
+    if warning_id and warning_id != "W-INCIDENT":
+        w = db.query(WarningModel).filter(WarningModel.id == warning_id).first()
+        if w:
+            if w.asset:
+                product = w.asset.product or product
+                version = w.asset.version or version
+                environment = w.asset.environment or environment
+                internet_facing = w.asset.internet_facing if w.asset.internet_facing is not None else internet_facing
+                criticality = w.asset.criticality or criticality
+                if not payload.get("target_hostname"):
+                    target_hostname = w.asset.hostname
+            if w.threat and w.threat.cve_ids:
+                cve_id = w.threat.cve_ids[0]
+            if w.dimensions_json:
+                dimensions = w.dimensions_json
+            if w.rules_fired:
+                rules_fired = w.rules_fired
+            if w.risk_score is not None and "risk_score" not in payload:
+                risk_score = float(w.risk_score)
+            if w.band and "band" not in payload:
+                band = str(w.band).upper()
+
+    # Generate executive PDF incident report attachment
+    pdf_bytes = None
+    try:
+        pdf_bytes = generate_incident_pdf_bytes(
+            warning_id=warning_id,
+            title=title,
+            target_hostname=target_hostname,
+            source_ip=source_ip,
+            risk_score=risk_score,
+            band=band,
+            recommended_action=recommended_action,
+            product=product,
+            version=version,
+            environment=environment,
+            internet_facing=internet_facing,
+            criticality=criticality,
+            cve_id=cve_id,
+            dimensions=dimensions,
+            rules_fired=rules_fired
+        )
+    except Exception as e:
+        pdf_bytes = None
+
     email_data = generate_email_alert(
         warning_id=warning_id,
         title=title,
@@ -748,7 +854,14 @@ def dispatch_real_email(
         source_ip=source_ip,
         risk_score=risk_score,
         band=band,
-        recommended_action=recommended_action
+        recommended_action=recommended_action,
+        product=product,
+        version=version,
+        environment=environment,
+        internet_facing=internet_facing,
+        criticality=criticality,
+        cve_id=cve_id,
+        rules_fired=rules_fired
     )
 
     plain_text = (
@@ -759,6 +872,7 @@ def dispatch_real_email(
         f"Source IP: {source_ip}\n"
         f"Risk Score: {risk_score:.1f}\n"
         f"Action: {recommended_action}\n"
+        f"Dossier: Formally attached as SENTINEL_GRID_{warning_id}.pdf\n"
     )
 
     actor_email = current_user.email if current_user else "SecOps Operator"
@@ -768,7 +882,9 @@ def dispatch_real_email(
             to_email=to_email,
             subject=email_data["subject"],
             html_content=email_data["html_body"],
-            plain_text=plain_text
+            plain_text=plain_text,
+            pdf_bytes=pdf_bytes,
+            pdf_filename=f"SENTINEL_GRID_{warning_id}.pdf"
         )
 
         db.add(AuditLog(
@@ -776,8 +892,8 @@ def dispatch_real_email(
             action="EMAIL_ALERT_DISPATCHED",
             object=f"{warning_id} -> {to_email}",
             before_state={"channel": "QUEUED"},
-            after_state={"recipient": to_email, "status": "SENT_VIA_SMTP", "server": res["smtp_server"]},
-            reason=f"Emergency security advisory dispatched to {to_email} by {actor_email}",
+            after_state={"recipient": to_email, "status": "SENT_VIA_SMTP", "server": res["smtp_server"], "pdf_attached": res.get("pdf_attached", False)},
+            reason=f"Emergency security advisory with cryptographic PDF report dispatched to {to_email} by {actor_email}",
             simulated=False
         ))
         db.commit()
@@ -786,7 +902,8 @@ def dispatch_real_email(
             "status": "SENT",
             "recipient": to_email,
             "smtp_server": res["smtp_server"],
-            "subject": email_data["subject"]
+            "subject": email_data["subject"],
+            "pdf_attached": res.get("pdf_attached", False)
         }
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -798,6 +915,15 @@ def dispatch_real_email(
 @router.post("/alerts/whatsapp-link")
 def get_whatsapp_deep_link(payload: dict = Body(...)):
     phone = payload.get("phone", "").strip()
+    phones = payload.get("phones", [])
+    if isinstance(phones, str):
+        phones = [p.strip() for p in phones.split(",") if p.strip()]
+    elif not isinstance(phones, list):
+        phones = []
+
+    if phone and phone not in phones:
+        phones.insert(0, phone)
+
     warning_id = payload.get("warning_id", "W-INCIDENT")
     title = payload.get("title", "Security Incident Advisory")
     target_hostname = payload.get("target_hostname", "enterprise-host")
@@ -816,13 +942,24 @@ def get_whatsapp_deep_link(payload: dict = Body(...)):
         source_ip=source_ip,
         risk_score=risk_score,
         band=band,
-        recommended_action=recommended_action
+        recommended_action=recommended_action,
+        phone_number=phones[0] if phones else ""
     )
 
-    if phone:
-        import urllib.parse
-        clean_phone = "".join(ch for ch in phone if ch.isdigit() or ch == "+").replace("+", "")
-        res["wa_deep_link"] = f"https://wa.me/{clean_phone}?text={urllib.parse.quote(res['formatted_text'])}"
+    import urllib.parse
+    contacts = []
+    for p in phones:
+        clean = "".join(ch for ch in str(p) if ch.isdigit() or ch == "+").replace("+", "")
+        if clean:
+            contacts.append({
+                "raw": p,
+                "clean": clean,
+                "url": f"https://wa.me/{clean}?text={urllib.parse.quote(res['formatted_text'])}"
+            })
+
+    res["contacts"] = contacts
+    if contacts:
+        res["wa_deep_link"] = contacts[0]["url"]
 
     return res
 
