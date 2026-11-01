@@ -1377,8 +1377,13 @@ def dispatch_real_email(
         raise HTTPException(status_code=400, detail=str(e))
     except PermissionError as e:
         raise HTTPException(status_code=401, detail=str(e))
+    except (smtplib.SMTPException, RuntimeError, TimeoutError, OSError) as e:
+        raise HTTPException(
+            status_code=503,
+            detail=f"Outbound SMTP service temporarily unreachable from cloud container: {str(e)}"
+        )
     except Exception as e:
-        raise HTTPException(status_code=502, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Email dispatch error: {str(e)}")
 
 @router.post("/alerts/whatsapp-link")
 def get_whatsapp_deep_link(payload: dict = Body(...)):
