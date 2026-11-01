@@ -15,6 +15,7 @@ import { AttackLabPage } from './pages/AttackLabPage';
 import { AssetsPage } from './pages/AssetsPage';
 import { AlertsPage } from './pages/AlertsPage';
 import { AuditPage } from './pages/AuditPage';
+import { BlueprintPage } from './pages/BlueprintPage';
 
 export function App() {
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => authStorage.getUser());
@@ -139,6 +140,7 @@ export function App() {
       case 'assets': return 'Asset Inventory';
       case 'alerts': return 'Incident Alert Center';
       case 'audit': return 'Cryptographic Audit Trail';
+      case 'blueprint': return 'AI & Scoring Blueprint';
       default: return 'SENTINEL GRID';
     }
   };
@@ -186,6 +188,8 @@ export function App() {
               onNavigateToAttacks={() => setCurrentPage('attack-lab')}
               onNavigateToAssets={() => setCurrentPage('assets')}
               onNavigateToAlerts={() => setCurrentPage('alerts')}
+              onNavigateToAudit={() => setCurrentPage('audit')}
+              onNavigateToBlueprint={() => setCurrentPage('blueprint')}
               onOpenUpload={() => setIsUploadOpen(true)}
               onSelectWarning={id => {
                 setSelectedWarningId(id);
@@ -230,6 +234,10 @@ export function App() {
 
           {currentPage === 'audit' && (
             <AuditPage />
+          )}
+
+          {currentPage === 'blueprint' && (
+            <BlueprintPage onNavigate={setCurrentPage} />
           )}
         </main>
       </div>

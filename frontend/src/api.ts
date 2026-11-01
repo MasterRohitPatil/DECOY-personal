@@ -1,7 +1,8 @@
 import {
   OverviewData, WarningItem, WarningDetail, AssetItem,
   AuditResponse, SmtpStatusResponse, SendEmailPayload, SendEmailResponse,
-  UserProfile, AuthResponse, DemoAccountInfo, AttackResponse
+  UserProfile, AuthResponse, DemoAccountInfo, AttackResponse, AiRecommendationsAdvice,
+  AdvisoryAnalysisResponse
 } from './types';
 
 const API_BASE = (import.meta as any).env?.VITE_API_BASE || 'http://localhost:8000/api';
@@ -88,6 +89,24 @@ export const api = {
     return await apiFetch<any>(`/warnings/${encodeURIComponent(id)}/ai-brief`);
   },
 
+  async getAiRecommendations(id: string): Promise<AiRecommendationsAdvice> {
+    return await apiFetch<AiRecommendationsAdvice>(`/warnings/${encodeURIComponent(id)}/ai-recommendations`);
+  },
+
+  async blockWarningIndicator(id: string): Promise<any> {
+    return await apiFetch<any>(`/warnings/${encodeURIComponent(id)}/block-indicator`, { method: 'POST' });
+  },
+
+  async toggleInvestigationStep(id: string, stepId: string, stepTitle: string, completed: boolean): Promise<{ status: string; warning_id: string; completed_steps: string[] }> {
+    return await apiFetch<{ status: string; warning_id: string; completed_steps: string[] }>(
+      `/warnings/${encodeURIComponent(id)}/investigate-step`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ step_id: stepId, step_title: stepTitle, completed })
+      }
+    );
+  },
+
   async getAssets(): Promise<AssetItem[]> {
     return await apiFetch<AssetItem[]>('/assets');
   },
@@ -149,12 +168,26 @@ export const api = {
     return await apiFetch<any>('/demo/reset', { method: 'POST' });
   },
 
+  async analyzeAdvisory(advisoryText: string): Promise<AdvisoryAnalysisResponse> {
+    return await apiFetch<AdvisoryAnalysisResponse>('/analyze-advisory', {
+      method: 'POST',
+      body: JSON.stringify({ advisory_text: advisoryText })
+    });
+  },
+
   async getAuditTrail(): Promise<AuditResponse> {
     return await apiFetch<AuditResponse>('/audit');
   },
 
   async verifyAuditTrail(): Promise<any> {
     return await apiFetch<any>('/audit/verify');
+  },
+
+  async simulateAuditTamper(recordId?: string | number): Promise<AuditResponse> {
+    return await apiFetch<AuditResponse>('/audit/simulate-tamper', {
+      method: 'POST',
+      body: JSON.stringify(recordId !== undefined ? { record_id: recordId } : {})
+    });
   },
 
   async getSmtpStatus(): Promise<SmtpStatusResponse> {

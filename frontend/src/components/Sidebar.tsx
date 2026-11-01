@@ -2,7 +2,7 @@ import React from 'react';
 import {
   LayoutDashboard, ShieldAlert, Flame, Server,
   Bell, Database, ChevronRight, ChevronLeft,
-  ShieldCheck
+  ShieldCheck, Cpu
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -62,8 +62,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
       id: 'audit',
       label: 'Cryptographic Audit Trail',
       icon: ShieldCheck,
-      badge: undefined,
-      badgeColor: ''
+      badge: 'Proof',
+      badgeColor: 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-900'
+    },
+    {
+      id: 'blueprint',
+      label: 'AI & Scoring Blueprint',
+      icon: Cpu,
+      badge: 'PS-01',
+      badgeColor: 'bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-400 border border-purple-200 dark:border-purple-900'
     }
   ];
 

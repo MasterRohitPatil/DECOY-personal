@@ -100,6 +100,8 @@ interface DashboardPageProps {
   onNavigateToAttacks: () => void;
   onNavigateToAssets?: () => void;
   onNavigateToAlerts?: () => void;
+  onNavigateToAudit?: () => void;
+  onNavigateToBlueprint?: () => void;
   onOpenUpload?: () => void;
   onSelectWarning: (id: string) => void;
 }
@@ -114,6 +116,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   onNavigateToAttacks,
   onNavigateToAssets,
   onNavigateToAlerts,
+  onNavigateToAudit,
+  onNavigateToBlueprint,
   onOpenUpload,
   onSelectWarning
 }) => {
@@ -438,6 +442,96 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
               <span>Attack Lab</span>
             </button>
           </div>
+        </div>
+      </div>
+
+      {/* Core PS-01 Differentiators & 1-Click Judge Live-Test Strip */}
+      <div className="bg-white dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-xs space-y-3 min-w-0 w-full">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+          <span className="text-[10px] font-mono uppercase tracking-wider font-extrabold text-blue-600 dark:text-cyan-400">
+            SENTINEL GRID Core Innovations • Click Any Capability to Test Live
+          </span>
+          <span className="text-[11px] text-slate-500 dark:text-slate-400">
+            Every claim is backed by real backend math, guardrails, and cryptographic verification
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+          <button
+            type="button"
+            onClick={onNavigateToWarnings}
+            className="p-3.5 rounded-xl bg-slate-50/80 hover:bg-emerald-50/70 dark:bg-slate-950/60 dark:hover:bg-emerald-950/30 border border-slate-200 hover:border-emerald-400 dark:border-slate-800 text-left transition-all space-y-1 min-w-0"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[10px] font-mono font-bold text-emerald-700 dark:text-emerald-400 uppercase">
+                1. Actionable Response
+              </span>
+              <ArrowRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+            </div>
+            <h4 className="text-xs font-extrabold text-slate-900 dark:text-white truncate">
+              Patch • Block • Investigate + Gemini
+            </h4>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2 leading-snug">
+              1-click firewall block (-20% Rule R7), safe upgrade CLI, and audited forensic checklist on every warning.
+            </p>
+          </button>
+
+          <button
+            type="button"
+            onClick={onNavigateToWarnings}
+            className="p-3.5 rounded-xl bg-slate-50/80 hover:bg-purple-50/70 dark:bg-slate-950/60 dark:hover:bg-purple-950/30 border border-slate-200 hover:border-purple-400 dark:border-slate-800 text-left transition-all space-y-1 min-w-0"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[10px] font-mono font-bold text-purple-700 dark:text-purple-400 uppercase">
+                2. AI Guardrail & Noise Filter
+              </span>
+              <ArrowRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+            </div>
+            <h4 className="text-xs font-extrabold text-slate-900 dark:text-white truncate">
+              Blocks AI Poisoning & False Alarms
+            </h4>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2 leading-snug">
+              Paste raw bulletins to test prompt-injection interception and automatic suppression of unmatched CVEs.
+            </p>
+          </button>
+
+          <button
+            type="button"
+            onClick={onNavigateToAudit}
+            className="p-3.5 rounded-xl bg-slate-50/80 hover:bg-amber-50/70 dark:bg-slate-950/60 dark:hover:bg-amber-950/30 border border-slate-200 hover:border-amber-400 dark:border-slate-800 text-left transition-all space-y-1 min-w-0"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[10px] font-mono font-bold text-amber-700 dark:text-amber-400 uppercase">
+                3. Cryptographic Proof
+              </span>
+              <ArrowRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+            </div>
+            <h4 className="text-xs font-extrabold text-slate-900 dark:text-white truncate">
+              Simulate Rogue DB Tamper Test
+            </h4>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2 leading-snug">
+              Test altering a database log in 1 click and watch SHA-256 Merkle verification catch the exact broken block.
+            </p>
+          </button>
+
+          <button
+            type="button"
+            onClick={onNavigateToBlueprint}
+            className="p-3.5 rounded-xl bg-slate-50/80 hover:bg-blue-50/70 dark:bg-slate-950/60 dark:hover:bg-blue-950/30 border border-slate-200 hover:border-blue-400 dark:border-slate-800 text-left transition-all space-y-1 min-w-0"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[10px] font-mono font-bold text-blue-700 dark:text-cyan-400 uppercase">
+                4. AI & Scoring Blueprint
+              </span>
+              <ArrowRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+            </div>
+            <h4 className="text-xs font-extrabold text-slate-900 dark:text-white truncate">
+              Interactive SEXVI Math Sandbox
+            </h4>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2 leading-snug">
+              Visual breakdown of our Hybrid AI model, S-E-X-V-I risk formula, and human-approved mitigation flow.
+            </p>
+          </button>
         </div>
       </div>
 

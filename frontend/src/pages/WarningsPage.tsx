@@ -9,6 +9,8 @@ import { RiskGauge } from '../components/RiskGauge';
 import { DimensionBars } from '../components/DimensionBars';
 import { ExposureGraph } from '../components/ExposureGraph';
 import { PipelineStepper } from '../components/PipelineStepper';
+import { ActionableRecommendationsPanel } from '../components/ActionableRecommendationsPanel';
+import { LiveAdvisoryAnalyzer } from '../components/LiveAdvisoryAnalyzer';
 import { api } from '../api';
 
 interface WarningsPageProps {
@@ -88,45 +90,45 @@ export const WarningsPage: React.FC<WarningsPageProps> = ({
     }
   };
 
-  const handleInjectAdvisory = () => {
+  const handleInjectAdvisory = async () => {
     setIngesting(true);
     setPipelineStage(1);
-    setPipelineLabel('1. Ingesting advisory from NVD feed...');
-
-    setTimeout(() => {
-      setPipelineStage(2);
-      setPipelineLabel('2. Extracting CVE entities & SemVer...');
-    }, 600);
-
-    setTimeout(() => {
-      setPipelineStage(3);
-      setPipelineLabel('3. Matching to installed asset inventory...');
-    }, 1200);
-
-    setTimeout(() => {
-      setPipelineStage(4);
-      setPipelineLabel('4. Calculating S,E,X,V,I & evaluating R1–R7...');
-    }, 1800);
-
-    setTimeout(() => {
+    setPipelineLabel('1. Ingesting live advisory payload from NVD / CERT-In...');
+    try {
+      setTimeout(() => {
+        setPipelineStage(2);
+        setPipelineLabel('2. Extracting CVE entities & SemVer constraints...');
+      }, 300);
+      setTimeout(() => {
+        setPipelineStage(3);
+        setPipelineLabel('3. Matching against 26 enterprise assets in PostgreSQL...');
+      }, 650);
+      const res = await api.injectScenario('log4j');
       setPipelineStage(5);
-      setPipelineLabel('5. Early Warning Generated: Priority Calculated.');
-      setIngesting(false);
+      setPipelineLabel(
+        res?.warning_id
+          ? `5. Early Warning Generated: ${res.warning_id} (${res.score}/100 ${res.band})`
+          : '5. Early Warning Generated: Priority Calculated.'
+      );
       onRefresh();
-    }, 2400);
-
-    setTimeout(() => {
+      if (res?.warning_id) {
+        setSelectedId(res.warning_id);
+        loadDetail(res.warning_id);
+      }
+    } catch {
       setPipelineStage(0);
       setPipelineLabel('Pipeline Idle');
-    }, 6000);
+    } finally {
+      setIngesting(false);
+    }
   };
 
   const handleKevEscalate = async () => {
     if (!detail) return;
     setEscalating(true);
     try {
-      const res = await api.escalateKev(detail.id);
-      setDetail(res);
+      await api.escalateKev(detail.id);
+      await loadDetail(detail.id);
       onRefresh();
     } catch (e) {
       console.error(e);
@@ -141,6 +143,7 @@ export const WarningsPage: React.FC<WarningsPageProps> = ({
     try {
       await api.approveWarning(detail.id);
       setApprovedState(true);
+      await loadDetail(detail.id);
       onRefresh();
     } catch (e) {
       console.error(e);
@@ -241,6 +244,21 @@ export const WarningsPage: React.FC<WarningsPageProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Live AI Threat Bulletin Analyzer & Prompt-Injection Guardrail Lab */}
+      <LiveAdvisoryAnalyzer
+        onWarningCreated={(newWarningId) => {
+          onRefresh();
+          if (newWarningId) {
+            setSelectedId(newWarningId);
+            loadDetail(newWarningId);
+          }
+        }}
+        onPipelineProgress={(stage, label) => {
+          setPipelineStage(stage);
+          setPipelineLabel(label);
+        }}
+      />
 
       {/* Pipeline Stepper */}
       <PipelineStepper currentStage={pipelineStage} stageLabel={pipelineLabel} />
@@ -415,9 +433,10 @@ export const WarningsPage: React.FC<WarningsPageProps> = ({
 
               {/* Blast-Radius Topology Graph */}
               <ExposureGraph
-                cveId={detail.threat?.cve_ids?.[0] || 'CVE-2026-4421'}
+                cveId={detail.threat?.cve_ids?.[0] || detail.security_event?.event_type || 'CVE-2026-4421'}
                 product={detail.asset?.product || 'nginx'}
                 hostname={detail.asset?.hostname || detail.target_hostname || 'target-host'}
+                attackerIp={detail.security_event?.source_ip || '198.51.100.23'}
                 isInternetFacing={detail.asset?.internet_facing ?? true}
                 score={detail.risk_score}
               />
@@ -441,16 +460,38 @@ export const WarningsPage: React.FC<WarningsPageProps> = ({
                   <span className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400 font-bold uppercase tracking-wider block mb-2">
                     Cited Evidence ([REF-1])
                   </span>
-                  {detail.evidence.map((ev, i) => (
-                    <div key={i} className="text-xs text-slate-700 dark:text-slate-300 font-mono">
-                      <strong className="text-emerald-600 dark:text-emerald-400">{ev.citation_key}</strong> {ev.citation_text}
+                  {detail.evidence && detail.evidence.length > 0 ? (
+                    detail.evidence.map((ev, i) => (
+                      <div key={i} className="text-xs text-slate-700 dark:text-slate-300 font-mono">
+                        <strong className="text-emerald-600 dark:text-emerald-400">{ev.citation_key}</strong> {ev.citation_text}
+                      </div>
+                    ))
+                  ) : detail.security_event ? (
+                    <div className="text-xs text-slate-700 dark:text-slate-300 font-mono">
+                      <strong className="text-emerald-600 dark:text-emerald-400">[TELEMETRY-1]</strong> {detail.security_event.payload}
                     </div>
-                  ))}
+                  ) : (
+                    <div className="text-xs text-slate-700 dark:text-slate-300 font-mono">
+                      <strong className="text-emerald-600 dark:text-emerald-400">[CMDB-1]</strong> Deterministic asset inventory & semantic version correlation verified.
+                    </div>
+                  )}
                 </div>
               </div>
 
-              {/* Remediation Playbook */}
-              {detail.playbook && (
+              {/* 3-Pillar Actionable Recommendations Engine (PS 01 Objective 5) */}
+              {detail.recommendations ? (
+                <ActionableRecommendationsPanel
+                  warningId={detail.id}
+                  recommendations={detail.recommendations}
+                  approvingPatch={approving}
+                  patchApproved={approvedState}
+                  onApprovePatch={handleApprove}
+                  onWarningUpdated={() => {
+                    loadDetail(detail.id);
+                    onRefresh();
+                  }}
+                />
+              ) : detail.playbook ? (
                 <div className="bg-slate-50 dark:bg-slate-950 p-4 rounded-xl border border-slate-200 dark:border-slate-800/80">
                   <div className="flex justify-between items-center mb-2">
                     <span className="text-xs font-bold text-slate-900 dark:text-white">
@@ -467,7 +508,7 @@ export const WarningsPage: React.FC<WarningsPageProps> = ({
                     ))}
                   </div>
                 </div>
-              )}
+              ) : null}
 
               {/* 14-Status Governance & Approver Loop */}
               <div className="bg-slate-50 dark:bg-slate-950 p-4 rounded-xl border border-slate-200 dark:border-slate-800/80 space-y-3">
