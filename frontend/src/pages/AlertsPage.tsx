@@ -126,7 +126,7 @@ export const AlertsPage: React.FC<AlertsPageProps> = ({
   return (
     <div className="p-6 lg:p-8 space-y-6 max-w-7xl mx-auto transition-colors duration-200">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-[#0B0F19] p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
         <div>
           <span className="text-[11px] font-mono text-blue-600 dark:text-blue-400 font-bold uppercase tracking-wider">
             Incident Alert & Notification Dispatcher
@@ -161,7 +161,7 @@ export const AlertsPage: React.FC<AlertsPageProps> = ({
       </div>
 
       {/* Incident Selection Dropdown */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-2">
+      <div className="bg-white dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-2">
         <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">
           Select Active Threat Advisory to Alert On:
         </label>
@@ -188,7 +188,7 @@ export const AlertsPage: React.FC<AlertsPageProps> = ({
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         
         {/* Column 1: Real SMTP Email Dispatch */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 space-y-4 shadow-xs flex flex-col justify-between">
+        <div className="bg-white dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 space-y-4 shadow-xs flex flex-col justify-between">
           <div className="space-y-3">
             <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
               <div className="flex items-center gap-2">
@@ -287,7 +287,7 @@ export const AlertsPage: React.FC<AlertsPageProps> = ({
         </div>
 
         {/* Column 2: WhatsApp Web Direct Deep-Link */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 space-y-4 shadow-xs flex flex-col justify-between">
+        <div className="bg-white dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 space-y-4 shadow-xs flex flex-col justify-between">
           <div className="space-y-3">
             <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
               <div className="flex items-center gap-2">

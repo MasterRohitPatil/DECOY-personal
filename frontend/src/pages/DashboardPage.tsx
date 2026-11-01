@@ -751,12 +751,12 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
 
                 {/* Central Threat Node */}
                 <g className="cursor-pointer" onClick={() => setInspectedNode('THREAT')}>
-                  <circle cx="230" cy="150" r="32" fill="#EF4444" opacity="0.2" className="animate-ping" />
-                  <circle cx="230" cy="150" r="26" fill="#EF4444" stroke="#DC2626" strokeWidth="2" />
-                  <text x="230" y="148" textAnchor="middle" fill="#FFFFFF" fontSize="9" fontWeight="bold">
-                    {activeThreat.id.length > 13 ? activeThreat.id.slice(0, 11) + '..' : activeThreat.id}
+                  <circle cx="230" cy="150" r="34" fill="#EF4444" opacity="0.2" className="animate-ping" />
+                  <circle cx="230" cy="150" r="28" fill="#EF4444" stroke="#DC2626" strokeWidth="2" />
+                  <text x="230" y="147" textAnchor="middle" fill="#FFFFFF" fontSize="8" fontWeight="bold" fontFamily="monospace">
+                    {activeThreat.id.length > 12 ? activeThreat.id.slice(0, 10) + '..' : activeThreat.id}
                   </text>
-                  <text x="230" y="160" textAnchor="middle" fill="#FFFFFF" fontSize="8" opacity="0.9">
+                  <text x="230" y="158" textAnchor="middle" fill="#FFFFFF" fontSize="7.5" fontWeight="bold" opacity="0.95" fontFamily="monospace">
                     {activeThreat.score.toFixed(1)}
                   </text>
                 </g>
@@ -765,23 +765,23 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                 <g className="cursor-pointer" onClick={() => setInspectedNode('ASSET')}>
                   <circle cx="80" cy="70" r="18" fill="#3B82F6" stroke="#2563EB" strokeWidth="1.5" />
                   <text x="80" y="74" textAnchor="middle" fill="#FFFFFF" fontSize="8" fontWeight="bold">Asset</text>
-                  <text x="80" y="98" textAnchor="middle" fill="#64748B" fontSize="8" fontWeight="500">
-                    {activeThreat.asset.split('.')[0]}
+                  <text x="80" y="98" textAnchor="middle" fill="#64748B" fontSize="8" fontWeight="500" fontFamily="monospace">
+                    {activeThreat.asset.split('.')[0].length > 12 ? activeThreat.asset.split('.')[0].slice(0, 10) + '..' : activeThreat.asset.split('.')[0]}
                   </text>
                 </g>
 
                 <g className="cursor-pointer" onClick={() => setInspectedNode('INTEL')}>
                   <circle cx="380" cy="70" r="18" fill="#F59E0B" stroke="#D97706" strokeWidth="1.5" />
                   <text x="380" y="74" textAnchor="middle" fill="#FFFFFF" fontSize="8" fontWeight="bold">Source</text>
-                  <text x="380" y="98" textAnchor="middle" fill="#64748B" fontSize="8" fontWeight="500">
-                    {activeThreat.src}
+                  <text x="380" y="98" textAnchor="middle" fill="#64748B" fontSize="8" fontWeight="500" fontFamily="monospace">
+                    {activeThreat.src.length > 12 ? activeThreat.src.slice(0, 10) + '..' : activeThreat.src}
                   </text>
                 </g>
 
                 <g className="cursor-pointer" onClick={() => setInspectedNode('IP')}>
                   <circle cx="60" cy="180" r="18" fill="#EC4899" stroke="#DB2777" strokeWidth="1.5" />
                   <text x="60" y="184" textAnchor="middle" fill="#FFFFFF" fontSize="8" fontWeight="bold">IP IOC</text>
-                  <text x="60" y="208" textAnchor="middle" fill="#64748B" fontSize="8" fontWeight="500">
+                  <text x="60" y="208" textAnchor="middle" fill="#64748B" fontSize="8" fontWeight="500" fontFamily="monospace">
                     {activeThreat.ip}
                   </text>
                 </g>
@@ -789,7 +789,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                 <g className="cursor-pointer" onClick={() => setInspectedNode('POLICY')}>
                   <circle cx="400" cy="180" r="18" fill="#10B981" stroke="#059669" strokeWidth="1.5" />
                   <text x="400" y="184" textAnchor="middle" fill="#FFFFFF" fontSize="8" fontWeight="bold">Policy</text>
-                  <text x="400" y="208" textAnchor="middle" fill="#64748B" fontSize="8" fontWeight="500">
+                  <text x="400" y="208" textAnchor="middle" fill="#64748B" fontSize="8" fontWeight="500" fontFamily="monospace">
                     {activeThreat.policy.split('_')[0]}
                   </text>
                 </g>
@@ -797,15 +797,15 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                 <g className="cursor-pointer" onClick={() => setInspectedNode('VECTOR')}>
                   <circle cx="140" cy="250" r="18" fill="#06B6D4" stroke="#0891B2" strokeWidth="1.5" />
                   <text x="140" y="254" textAnchor="middle" fill="#FFFFFF" fontSize="8" fontWeight="bold">Product</text>
-                  <text x="140" y="278" textAnchor="middle" fill="#64748B" fontSize="8" fontWeight="500">
-                    {activeThreat.product}
+                  <text x="140" y="278" textAnchor="middle" fill="#64748B" fontSize="8" fontWeight="500" fontFamily="monospace">
+                    {activeThreat.product.length > 12 ? activeThreat.product.slice(0, 10) + '..' : activeThreat.product}
                   </text>
                 </g>
 
                 <g className="cursor-pointer" onClick={() => setInspectedNode('STATUS')}>
                   <circle cx="320" cy="250" r="18" fill="#8B5CF6" stroke="#7C3AED" strokeWidth="1.5" />
                   <text x="320" y="254" textAnchor="middle" fill="#FFFFFF" fontSize="8" fontWeight="bold">Status</text>
-                  <text x="320" y="278" textAnchor="middle" fill="#64748B" fontSize="8" fontWeight="500">
+                  <text x="320" y="278" textAnchor="middle" fill="#64748B" fontSize="8" fontWeight="500" fontFamily="monospace">
                     {activeThreat.status}
                   </text>
                 </g>
