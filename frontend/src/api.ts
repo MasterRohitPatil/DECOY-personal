@@ -69,6 +69,10 @@ async function apiFetch<T>(endpoint: string, options: RequestInit = {}): Promise
 }
 
 export const api = {
+  getApiBase(): string {
+    return API_BASE;
+  },
+
   async getOverview(): Promise<OverviewData> {
     return await apiFetch<OverviewData>('/overview');
   },

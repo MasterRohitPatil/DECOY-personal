@@ -202,6 +202,8 @@ export const AttackLabPage: React.FC<AttackLabPageProps> = ({
   const currentScenario = ATTACK_SCENARIOS.find(a => a.id === selectedAttack) || ATTACK_SCENARIOS[0];
   const targetAsset = assets.find(a => a.hostname === selectedHost);
 
+  const originUrl = typeof window !== 'undefined' ? window.location.origin : 'https://decoy-personal.vercel.app';
+
   // WhatsApp Alert Text
   const waMessage = result ? `🚨 *SENTINEL GRID INCIDENT ALERT*
 ━━━━━━━━━━━━━━━━━━━
@@ -213,7 +215,7 @@ export const AttackLabPage: React.FC<AttackLabPageProps> = ({
 • *Exposure Reality:* ${result.exposure_status}
 • *Status:* ${isMitigated ? 'MITIGATED (Rule R7 Active)' : 'ACTIVE THREAT DETECTED'}
 ━━━━━━━━━━━━━━━━━━━
-👉 Live Console: http://localhost:5173` : '';
+👉 Live Console: ${originUrl}` : '';
 
   const waDeepLink = `https://wa.me/?text=${encodeURIComponent(waMessage)}`;
 

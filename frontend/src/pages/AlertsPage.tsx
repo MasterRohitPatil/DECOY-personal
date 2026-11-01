@@ -122,7 +122,9 @@ export const AlertsPage: React.FC<AlertsPageProps> = ({
 
   const pdfDownloadUrl = selectedWarning
     ? api.getWarningPdfUrl(selectedWarning.id)
-    : 'http://localhost:8000/api/warnings/W-INCIDENT/pdf';
+    : `${api.getApiBase()}/warnings/W-INCIDENT/pdf`;
+
+  const originUrl = typeof window !== 'undefined' ? window.location.origin : 'https://decoy-personal.vercel.app';
 
   const waMessage = selectedWarning
     ? `🚨 *SENTINEL GRID SECURITY ALERT*
@@ -136,7 +138,7 @@ export const AlertsPage: React.FC<AlertsPageProps> = ({
 • *3-Pillar Action:* ${selectedWarning.brief_summary || 'Patch package, Block IOC at perimeter (Rule R7), and Audit host.'}
 ━━━━━━━━━━━━━━━━━━━
 📄 *Download PDF Dossier:* ${pdfDownloadUrl}
-🔗 *SOC Portal:* http://localhost:5173/warnings`
+🔗 *SOC Portal:* ${originUrl}`
     : `🚨 *SENTINEL GRID SECURITY ALERT* - Active telemetry monitoring enabled.`;
 
   const primaryWaLink = cleanPrimary
