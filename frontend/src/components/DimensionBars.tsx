@@ -52,9 +52,9 @@ export const DimensionBars: React.FC<DimensionBarsProps> = ({ dimensions, confid
         })}
       </div>
 
-      <div className="mt-3 pt-2 border-t border-slate-800 text-[11px] text-slate-400 flex justify-between items-center">
-        <span className="font-mono text-slate-400 text-[10px]">Formula: 100 × (0.30S + 0.30E + 0.20X + 0.10V + 0.10I)</span>
-        <span className="text-amber-400 text-[10px] font-semibold">Uncalibrated expert weights</span>
+      <div className="mt-3 pt-2.5 border-t border-slate-200 dark:border-slate-800 text-[11px] flex justify-between items-center">
+        <span className="font-mono text-slate-500 dark:text-slate-400 text-[10px]">Section 3.4 Formula: S_EXVI = 0.35·C + 0.30·E + 0.20·A + 0.15·T</span>
+        <span className="text-cyan-600 dark:text-cyan-400 text-[10px] font-mono font-bold">Deterministic</span>
       </div>
     </div>
   );
