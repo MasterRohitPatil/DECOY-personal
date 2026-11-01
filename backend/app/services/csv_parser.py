@@ -244,6 +244,7 @@ def ingest_csv_data(
 
             # Real-time Exposure Matching against all existing threats
             all_threats = db.query(Threat).all()
+            seen_warn_ids = set()
             for th in all_threats:
                 th_prod = ""
                 if th.products:
@@ -269,8 +270,13 @@ def ingest_csv_data(
                     )
                     cve_part = th.cve_ids[0] if th.cve_ids else 'TH'
                     warn_id = f"W-{cve_part}-{re.sub(r'[^a-zA-Z0-9_]', '_', ast.hostname.split('.')[0])}"
-                    if not db.query(WarningModel).filter(WarningModel.id == warn_id).first():
-                        exp_id = f"exp_{warn_id}"
+                    exp_id = f"exp_{warn_id}"
+                    if (
+                        warn_id not in seen_warn_ids
+                        and not db.query(WarningModel).filter(WarningModel.id == warn_id).first()
+                        and not db.query(Exposure).filter(Exposure.id == exp_id).first()
+                    ):
+                        seen_warn_ids.add(warn_id)
                         exp = Exposure(
                             id=exp_id,
                             threat_id=th.id,
@@ -298,6 +304,7 @@ def ingest_csv_data(
                         )
                         db.add(w)
                         warnings_generated += 1
+            db.flush()
 
         db.commit()
 
@@ -411,8 +418,11 @@ def ingest_csv_data(
                     )
 
                     warn_id = f"W-{cve_id}-{re.sub(r'[^a-zA-Z0-9_]', '_', ast.hostname.split('.')[0])}"
-                    if not db.query(WarningModel).filter(WarningModel.id == warn_id).first():
-                        exp_id = f"exp_{warn_id}"
+                    exp_id = f"exp_{warn_id}"
+                    if (
+                        not db.query(WarningModel).filter(WarningModel.id == warn_id).first()
+                        and not db.query(Exposure).filter(Exposure.id == exp_id).first()
+                    ):
                         exp = Exposure(
                             id=exp_id,
                             threat_id=threat.id,
@@ -441,15 +451,17 @@ def ingest_csv_data(
                         db.add(w)
                         warnings_generated += 1
 
-                        ev = EvidenceLink(
-                            id=f"ev_{warn_id}",
-                            warning_id=warn_id,
-                            citation_key="[CSV-INGEST]",
-                            citation_text=f"CSV Advisory {cve_id}: {title} (CVSS {cvss})",
-                            url_or_ref=f"https://nvd.nist.gov/vuln/detail/{cve_id}",
-                            confidence=0.92
-                        )
-                        db.add(ev)
+                        if not db.query(EvidenceLink).filter(EvidenceLink.id == f"ev_{warn_id}").first():
+                            ev = EvidenceLink(
+                                id=f"ev_{warn_id}",
+                                warning_id=warn_id,
+                                citation_key="[CSV-INGEST]",
+                                citation_text=f"CSV Advisory {cve_id}: {title} (CVSS {cvss})",
+                                url_or_ref=f"https://nvd.nist.gov/vuln/detail/{cve_id}",
+                                confidence=0.92
+                            )
+                            db.add(ev)
+            db.flush()
 
         db.commit()
 

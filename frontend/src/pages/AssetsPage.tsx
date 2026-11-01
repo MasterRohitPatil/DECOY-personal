@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
-  Server, Search, Filter, ShieldCheck, AlertCircle, CheckCircle,
-  UploadCloud, RefreshCw, AlertTriangle, X
+  Server, Search, ShieldCheck, ShieldAlert, CheckCircle,
+  UploadCloud, RefreshCw, AlertTriangle, X, ArrowRight, Globe, Lock
 } from 'lucide-react';
 import { AssetItem } from '../types';
 
@@ -11,6 +11,7 @@ interface AssetsPageProps {
   error?: string | null;
   onRefresh?: () => void;
   onOpenUpload?: () => void;
+  onSelectWarning?: (warningId: string) => void;
 }
 
 export const AssetsPage: React.FC<AssetsPageProps> = ({
@@ -18,16 +19,25 @@ export const AssetsPage: React.FC<AssetsPageProps> = ({
   loading = false,
   error = null,
   onRefresh,
-  onOpenUpload
+  onOpenUpload,
+  onSelectWarning
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [envFilter, setEnvFilter] = useState('ALL');
+
+  const exposedCount = assets.filter(
+    a => a.exposure_status === 'CONFIRMED_EXPOSED' || a.exposure_status === 'LIKELY_EXPOSED'
+  ).length;
+  const mitigatedCount = assets.filter(a => a.exposure_status === 'MITIGATED').length;
+  const internetProdCount = assets.filter(a => a.internet_facing && a.environment === 'PROD').length;
+  const isolatedCount = assets.filter(a => !a.internet_facing || a.environment === 'ISOLATED').length;
 
   const filtered = assets.filter(a => {
     const matchesSearch =
       a.hostname.toLowerCase().includes(searchTerm.toLowerCase()) ||
       a.product.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      a.vendor.toLowerCase().includes(searchTerm.toLowerCase());
+      a.vendor.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (a.matched_cve && a.matched_cve.toLowerCase().includes(searchTerm.toLowerCase()));
     const matchesEnv = envFilter === 'ALL' || a.environment === envFilter;
     return matchesSearch && matchesEnv;
   });
@@ -84,6 +94,69 @@ export const AssetsPage: React.FC<AssetsPageProps> = ({
         </div>
       )}
 
+      {/* Live Exposure Summary KPI Strip */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-white dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-xs flex items-center justify-between">
+          <div>
+            <span className="text-[10px] font-mono uppercase text-red-600 dark:text-red-400 font-bold">
+              Active Exposures
+            </span>
+            <div className="text-2xl font-black text-slate-900 dark:text-white font-mono mt-0.5">
+              {exposedCount}
+            </div>
+            <span className="text-[11px] text-slate-500">Matched to active CVEs</span>
+          </div>
+          <div className="w-10 h-10 rounded-xl bg-red-50 dark:bg-red-950/60 border border-red-200 dark:border-red-800 flex items-center justify-center text-red-600 dark:text-red-400">
+            <ShieldAlert className="w-5 h-5" />
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-xs flex items-center justify-between">
+          <div>
+            <span className="text-[10px] font-mono uppercase text-emerald-600 dark:text-emerald-400 font-bold">
+              Mitigated / Patched
+            </span>
+            <div className="text-2xl font-black text-slate-900 dark:text-white font-mono mt-0.5">
+              {mitigatedCount}
+            </div>
+            <span className="text-[11px] text-slate-500">Rule R7 or patch active</span>
+          </div>
+          <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
+            <ShieldCheck className="w-5 h-5" />
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-xs flex items-center justify-between">
+          <div>
+            <span className="text-[10px] font-mono uppercase text-blue-600 dark:text-cyan-400 font-bold">
+              Internet-Facing Prod
+            </span>
+            <div className="text-2xl font-black text-slate-900 dark:text-white font-mono mt-0.5">
+              {internetProdCount}
+            </div>
+            <span className="text-[11px] text-slate-500">Direct public ingress (X=1.0)</span>
+          </div>
+          <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 flex items-center justify-center text-blue-600 dark:text-cyan-400">
+            <Globe className="w-5 h-5" />
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-xs flex items-center justify-between">
+          <div>
+            <span className="text-[10px] font-mono uppercase text-purple-600 dark:text-purple-400 font-bold">
+              Airgapped / Internal
+            </span>
+            <div className="text-2xl font-black text-slate-900 dark:text-white font-mono mt-0.5">
+              {isolatedCount}
+            </div>
+            <span className="text-[11px] text-slate-500">Segmented subnet (X≤0.5)</span>
+          </div>
+          <div className="w-10 h-10 rounded-xl bg-purple-50 dark:bg-purple-950/60 border border-purple-200 dark:border-purple-800 flex items-center justify-center text-purple-600 dark:text-purple-400">
+            <Lock className="w-5 h-5" />
+          </div>
+        </div>
+      </div>
+
       {/* Filter and Search Bar */}
       <div className="flex flex-col sm:flex-row gap-3 justify-between items-center bg-white dark:bg-[#0B0F19] p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
         <div className="relative w-full sm:w-80">
@@ -110,11 +183,10 @@ export const AssetsPage: React.FC<AssetsPageProps> = ({
             <button
               key={env}
               onClick={() => setEnvFilter(env)}
-              className={`px-3 py-1.5 rounded-lg transition-all ${
-                envFilter === env
+              className={`px-3 py-1.5 rounded-lg transition-all ${envFilter === env
                   ? 'bg-cyan-600 text-white font-bold shadow-sm'
                   : 'bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-800'
-              }`}
+                }`}
             >
               {env}
             </button>
@@ -135,6 +207,7 @@ export const AssetsPage: React.FC<AssetsPageProps> = ({
                 <th className="p-4">Exposure Status</th>
                 <th className="p-4">Criticality Tier</th>
                 <th className="p-4">Owner</th>
+                <th className="p-4 text-right">Warning Drill-Down</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-slate-800/80">
@@ -149,11 +222,12 @@ export const AssetsPage: React.FC<AssetsPageProps> = ({
                     <td className="p-4"><div className="h-4 w-20 bg-slate-200 dark:bg-slate-800 rounded"></div></td>
                     <td className="p-4"><div className="h-4 w-12 bg-slate-200 dark:bg-slate-800 rounded"></div></td>
                     <td className="p-4"><div className="h-4 w-20 bg-slate-200 dark:bg-slate-800 rounded"></div></td>
+                    <td className="p-4"><div className="h-4 w-24 bg-slate-200 dark:bg-slate-800 rounded ml-auto"></div></td>
                   </tr>
                 ))
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="p-12 text-center space-y-3">
+                  <td colSpan={8} className="p-12 text-center space-y-3">
                     <Server className="w-10 h-10 text-slate-400 mx-auto" />
                     <h4 className="font-bold text-sm text-slate-900 dark:text-white">
                       {assets.length === 0 ? 'No Monitored Assets Found' : 'No Assets Match Criteria'}
@@ -195,29 +269,41 @@ export const AssetsPage: React.FC<AssetsPageProps> = ({
                     <td className="p-4 text-cyan-600 dark:text-cyan-300 font-bold">{a.product}</td>
                     <td className="p-4 text-slate-500 dark:text-slate-400">{a.version}</td>
                     <td className="p-4">
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                        a.environment === 'PROD'
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${a.environment === 'PROD'
                           ? 'bg-red-50 dark:bg-red-950 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-900'
                           : a.environment === 'STAGE'
-                          ? 'bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-900'
-                          : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
-                      }`}>
+                            ? 'bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-900'
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
+                        }`}>
                         {a.environment}
                       </span>
                     </td>
                     <td className="p-4">
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold flex items-center gap-1.5 w-max ${
-                        a.exposure_status === 'CONFIRMED_EXPOSED'
-                          ? 'bg-red-100 dark:bg-red-950 text-red-700 dark:text-red-300'
-                          : a.exposure_status === 'LIKELY_EXPOSED'
-                          ? 'bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300'
-                          : 'bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300'
-                      }`}>
-                        <span className={`w-1.5 h-1.5 rounded-full ${
-                          a.exposure_status === 'CONFIRMED_EXPOSED' ? 'bg-red-500' : a.exposure_status === 'LIKELY_EXPOSED' ? 'bg-amber-500' : 'bg-emerald-500'
-                        }`}></span>
-                        {a.exposure_status}
-                      </span>
+                      <div className="flex flex-col gap-1">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold flex items-center gap-1.5 w-max ${a.exposure_status === 'CONFIRMED_EXPOSED'
+                            ? 'bg-red-100 dark:bg-red-950 text-red-700 dark:text-red-300'
+                            : a.exposure_status === 'LIKELY_EXPOSED'
+                              ? 'bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300'
+                              : a.exposure_status === 'MITIGATED'
+                                ? 'bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300'
+                                : 'bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300'
+                          }`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${a.exposure_status === 'CONFIRMED_EXPOSED'
+                              ? 'bg-red-500'
+                              : a.exposure_status === 'LIKELY_EXPOSED'
+                                ? 'bg-amber-500'
+                                : a.exposure_status === 'MITIGATED'
+                                  ? 'bg-blue-500'
+                                  : 'bg-emerald-500'
+                            }`}></span>
+                          {a.exposure_status}
+                        </span>
+                        {a.matched_cve && (
+                          <span className="text-[10px] text-slate-500 dark:text-slate-400">
+                            {a.matched_cve} {a.risk_score ? `(${a.risk_score.toFixed(1)})` : ''}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="p-4">
                       <span className="font-bold text-slate-700 dark:text-slate-300">
@@ -226,6 +312,23 @@ export const AssetsPage: React.FC<AssetsPageProps> = ({
                       <span className="text-slate-400 text-[10px] ml-1">({a.criticality}/5)</span>
                     </td>
                     <td className="p-4 text-slate-500 dark:text-slate-400">{a.owner}</td>
+                    <td className="p-4 text-right">
+                      {a.active_warning_id && onSelectWarning ? (
+                        <button
+                          type="button"
+                          onClick={() => onSelectWarning(a.active_warning_id!)}
+                          className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-sans font-bold inline-flex items-center gap-1 shadow-2xs transition-all"
+                        >
+                          <span>Inspect Warning</span>
+                          <ArrowRight className="w-3 h-3" />
+                        </button>
+                      ) : (
+                        <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-sans font-semibold inline-flex items-center gap-1">
+                          <CheckCircle className="w-3 h-3" />
+                          Verified Safe
+                        </span>
+                      )}
+                    </td>
                   </tr>
                 ))
               )}

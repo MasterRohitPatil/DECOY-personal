@@ -66,7 +66,15 @@ const ATTACK_SCENARIOS: AttackScenario[] = [
   }
 ];
 
-export const AttackLabPage: React.FC = () => {
+interface AttackLabPageProps {
+  onRefresh?: () => void;
+  onSelectWarning?: (warningId: string) => void;
+}
+
+export const AttackLabPage: React.FC<AttackLabPageProps> = ({
+  onRefresh,
+  onSelectWarning
+}) => {
   const [selectedAttack, setSelectedAttack] = useState<string>('brute-force');
   const [assets, setAssets] = useState<AssetItem[]>([]);
   const [selectedHost, setSelectedHost] = useState<string>('auth-srv-01.prod.sentinel');
@@ -111,7 +119,7 @@ export const AttackLabPage: React.FC = () => {
   }, []);
 
   // Run attack simulation
-  const handleFireAttack = async (attackType?: string, targetHost?: string) => {
+  const handleFireAttack = async (attackType?: string, targetHost?: string, syncGlobal: boolean = true) => {
     const atk = attackType || selectedAttack;
     const host = targetHost || selectedHost;
     setSelectedAttack(atk);
@@ -124,6 +132,9 @@ export const AttackLabPage: React.FC = () => {
     try {
       const response = await api.triggerAttack(atk, host);
       setResult(response.result);
+      if (syncGlobal && onRefresh) {
+        onRefresh();
+      }
     } catch (e: any) {
       setErrorMsg(e.message || 'Simulation execution failed');
     } finally {
@@ -134,7 +145,7 @@ export const AttackLabPage: React.FC = () => {
   // Run initial simulation if not yet run and assets are loaded
   useEffect(() => {
     if (assets.length > 0 && !result && !loading) {
-      handleFireAttack('brute-force', 'auth-srv-01.prod.sentinel');
+      handleFireAttack('brute-force', 'auth-srv-01.prod.sentinel', false);
     }
   }, [assets]);
 
@@ -153,6 +164,9 @@ export const AttackLabPage: React.FC = () => {
           severity: res.new_band as any,
           rules_fired: [...result.rules_fired, 'R7_COMPENSATING_CONTROL_MITIGATION']
         });
+      }
+      if (onRefresh) {
+        onRefresh();
       }
     } catch (e: any) {
       setErrorMsg('Mitigation failed: ' + (e.message || 'Unable to apply firewall drop rule.'));
@@ -513,30 +527,43 @@ export const AttackLabPage: React.FC = () => {
                 </p>
               </div>
 
-              {/* Action Button: Mitigate */}
-              <button
-                onClick={handleMitigate}
-                disabled={mitigating || isMitigated}
-                className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-2 shrink-0 ${
-                  isMitigated
-                    ? 'bg-emerald-600 text-white cursor-default'
-                    : 'bg-red-600 hover:bg-red-500 text-white shadow-red-200 dark:shadow-none'
-                }`}
-              >
-                {mitigating ? (
-                  'Deploying Rule...'
-                ) : isMitigated ? (
-                  <>
-                    <ShieldCheck className="w-4 h-4" />
-                    Firewall Rule Deployed (Mitigated)
-                  </>
-                ) : (
-                  <>
-                    <ShieldCheck className="w-4 h-4" />
-                    Deploy Automated Perimeter Block (Rule R7)
-                  </>
+              {/* Action Buttons: Mitigate & Open 3-Pillar Playbook */}
+              <div className="flex flex-wrap items-center gap-2 shrink-0">
+                <button
+                  onClick={handleMitigate}
+                  disabled={mitigating || isMitigated}
+                  className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-2 shrink-0 ${
+                    isMitigated
+                      ? 'bg-emerald-600 text-white cursor-default'
+                      : 'bg-red-600 hover:bg-red-500 text-white shadow-red-200 dark:shadow-none'
+                  }`}
+                >
+                  {mitigating ? (
+                    'Deploying Rule...'
+                  ) : isMitigated ? (
+                    <>
+                      <ShieldCheck className="w-4 h-4" />
+                      Firewall Rule Deployed (Mitigated)
+                    </>
+                  ) : (
+                    <>
+                      <ShieldCheck className="w-4 h-4" />
+                      Deploy Automated Perimeter Block (Rule R7)
+                    </>
+                  )}
+                </button>
+
+                {result.warning_id && onSelectWarning && (
+                  <button
+                    type="button"
+                    onClick={() => onSelectWarning(result.warning_id)}
+                    className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all"
+                  >
+                    <span>Open 3-Pillar Playbook</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
                 )}
-              </button>
+              </div>
             </div>
           </div>
 

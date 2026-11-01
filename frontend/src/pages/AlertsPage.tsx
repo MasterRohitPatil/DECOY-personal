@@ -71,6 +71,10 @@ export const AlertsPage: React.FC<AlertsPageProps> = ({
   }, [warnings, selectedWarningId]);
 
   const selectedWarning = warnings.find(w => w.id === selectedWarningId) || warnings[0];
+  const activeSourceIp = selectedWarning?.source_ip || '185.220.101.5';
+  const activeProductSpec = selectedWarning?.product
+    ? `${selectedWarning.product}${selectedWarning.version ? ` ${selectedWarning.version}` : ''}`
+    : 'Enterprise Service';
 
   const handleSendRealEmail = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -93,10 +97,12 @@ export const AlertsPage: React.FC<AlertsPageProps> = ({
         warning_id: selectedWarning.id,
         title: selectedWarning.title,
         target_hostname: selectedWarning.target_hostname || 'enterprise-host',
-        source_ip: '185.220.101.5',
+        source_ip: activeSourceIp,
         risk_score: selectedWarning.risk_score,
         band: selectedWarning.band,
-        recommended_action: selectedWarning.brief_summary || 'Execute perimeter IP block and deploy patch.'
+        recommended_action:
+          selectedWarning.brief_summary ||
+          `Execute 3-Pillar Playbook on ${selectedWarning.target_hostname}: Patch ${activeProductSpec}, Block ${activeSourceIp} (Rule R7), and Verify forensic logs.`
       });
       setEmailSuccess(res);
     } catch (err: any) {
@@ -111,7 +117,7 @@ export const AlertsPage: React.FC<AlertsPageProps> = ({
   const cleanSecondary = secondaryPhone.replace(/[^0-9]/g, '');
   
   const cveId = selectedWarning
-    ? (selectedWarning.id.match(/CVE-\d{4}-\d+/i)?.[0] || selectedWarning.title.match(/CVE-\d{4}-\d+/i)?.[0] || selectedWarning.id)
+    ? (selectedWarning.cve_id || selectedWarning.id.match(/CVE-\d{4}-\d+/i)?.[0] || selectedWarning.title.match(/CVE-\d{4}-\d+/i)?.[0] || selectedWarning.id)
     : 'CVE-2021-44228';
 
   const pdfDownloadUrl = selectedWarning
@@ -123,9 +129,11 @@ export const AlertsPage: React.FC<AlertsPageProps> = ({
 ━━━━━━━━━━━━━━━━━━━
 • *Advisory / CVE:* \`${cveId}\`
 • *Incident:* ${selectedWarning.title}
-• *Target Asset:* \`${selectedWarning.target_hostname || 'auth-srv-01'}\`
+• *Target Asset:* \`${selectedWarning.target_hostname || 'auth-srv-01'}\` (${selectedWarning.environment || 'PROD'})
+• *Software Spec:* \`${activeProductSpec}\`
+• *Attacker IOC:* \`${activeSourceIp}\`
 • *Severity:* *${selectedWarning.band}* (Score: ${selectedWarning.risk_score.toFixed(1)}/100)
-• *Action Required:* ${selectedWarning.brief_summary || 'Isolate host at perimeter firewall.'}
+• *3-Pillar Action:* ${selectedWarning.brief_summary || 'Patch package, Block IOC at perimeter (Rule R7), and Audit host.'}
 ━━━━━━━━━━━━━━━━━━━
 📄 *Download PDF Dossier:* ${pdfDownloadUrl}
 🔗 *SOC Portal:* http://localhost:5173/warnings`
@@ -364,11 +372,11 @@ export const AlertsPage: React.FC<AlertsPageProps> = ({
               {/* Email Content Preview */}
               <div className="p-3 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 font-mono text-[11px] space-y-1.5 text-slate-600 dark:text-slate-400">
                 <div><span className="font-bold text-slate-800 dark:text-slate-200">Subject:</span> [{selectedWarning?.band || 'HIGH'}] SENTINEL GRID Alert: {selectedWarning?.title}</div>
-                <div><span className="font-bold text-slate-800 dark:text-slate-200">Format:</span> 100% Inline CSS Executive Light Card (High Contrast)</div>
-                <div><span className="font-bold text-slate-800 dark:text-slate-200">Target Host:</span> {selectedWarning?.target_hostname || 'auth-srv-01'}</div>
+                <div><span className="font-bold text-slate-800 dark:text-slate-200">Target Host:</span> {selectedWarning?.target_hostname || 'auth-srv-01'} ({activeProductSpec})</div>
+                <div><span className="font-bold text-slate-800 dark:text-slate-200">Attacker IOC:</span> {activeSourceIp} • CVE: {cveId}</div>
                 <div className="pt-1.5 border-t border-slate-200 dark:border-slate-800 flex items-center gap-1.5 text-blue-600 dark:text-blue-400 font-sans font-semibold text-[11px]">
                   <Paperclip className="w-3.5 h-3.5 text-blue-500 shrink-0" />
-                  <span>Auto-Attached: <code>SENTINEL_GRID_{selectedWarning?.id || 'INCIDENT'}.pdf</code></span>
+                  <span>Auto-Attached: <code>SENTINEL_GRID_{selectedWarning?.id || 'INCIDENT'}.pdf</code> (Includes 3-Pillar Playbook)</span>
                 </div>
               </div>
 

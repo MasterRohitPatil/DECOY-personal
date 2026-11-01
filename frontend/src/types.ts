@@ -14,6 +14,12 @@ export interface WarningItem {
   confidence: number;
   status: string;
   target_hostname: string;
+  product?: string;
+  version?: string;
+  environment?: string;
+  internet_facing?: boolean;
+  cve_id?: string | null;
+  source_ip?: string | null;
   created_at: string;
   rules_fired: string[];
   brief_summary: string;
@@ -128,6 +134,10 @@ export interface AssetItem {
   criticality: number;
   owner: string;
   exposure_status: string;
+  active_warning_id?: string | null;
+  matched_cve?: string | null;
+  risk_score?: number | null;
+  warning_status?: string | null;
   synthetic: boolean;
 }
 

@@ -102,6 +102,12 @@ def list_warnings(
     results = []
     for w in warnings:
         asset_hostname = w.asset.hostname if w.asset else "Unassigned / Cluster"
+        sec_event = w.security_event
+        cve_id = None
+        if w.threat and w.threat.cve_ids:
+            cve_id = w.threat.cve_ids[0]
+        elif sec_event and sec_event.event_type:
+            cve_id = sec_event.event_type
         results.append({
             "id": w.id,
             "title": w.title,
@@ -110,6 +116,12 @@ def list_warnings(
             "confidence": w.confidence,
             "status": w.status,
             "target_hostname": asset_hostname,
+            "product": w.asset.product if w.asset else "Enterprise Service",
+            "version": w.asset.version if w.asset else "1.0",
+            "environment": w.asset.environment if w.asset else "PROD",
+            "internet_facing": bool(w.asset.internet_facing) if w.asset else True,
+            "cve_id": cve_id,
+            "source_ip": sec_event.source_ip if (sec_event and sec_event.source_ip) else None,
             "created_at": w.created_at.isoformat() if w.created_at else None,
             "rules_fired": w.rules_fired,
             "brief_summary": w.brief_summary
@@ -515,9 +527,31 @@ def list_assets(db: Session = Depends(get_db)):
     assets = db.query(Asset).order_by(Asset.criticality.desc(), Asset.hostname.asc()).all()
     results = []
     for a in assets:
-        # Check active exposure
+        # Check active exposure and warnings correlated to this asset
         exp = db.query(Exposure).filter(Exposure.asset_id == a.id).first()
+        top_warning = (
+            db.query(WarningModel)
+            .filter(WarningModel.asset_id == a.id)
+            .order_by(WarningModel.risk_score.desc())
+            .first()
+        )
         status = exp.status if exp else "NOT_AFFECTED"
+        matched_cve = None
+        if top_warning:
+            if top_warning.threat and top_warning.threat.cve_ids:
+                matched_cve = top_warning.threat.cve_ids[0]
+            elif top_warning.security_event and top_warning.security_event.event_type:
+                matched_cve = top_warning.security_event.event_type
+
+            is_mitigated = (
+                top_warning.status in {"MITIGATED", "APPROVED", "PATCH_SIMULATED", "VERIFICATION", "CLOSED"}
+                or "R7_COMPENSATING_CONTROL_MITIGATION" in (top_warning.rules_fired or [])
+            )
+            if is_mitigated:
+                status = "MITIGATED"
+            elif status == "NOT_AFFECTED":
+                status = "CONFIRMED_EXPOSED" if top_warning.risk_score >= 60.0 else "LIKELY_EXPOSED"
+
         results.append({
             "id": a.id,
             "hostname": a.hostname,
@@ -529,6 +563,10 @@ def list_assets(db: Session = Depends(get_db)):
             "criticality": a.criticality,
             "owner": a.owner,
             "exposure_status": status,
+            "active_warning_id": top_warning.id if top_warning else None,
+            "matched_cve": matched_cve,
+            "risk_score": float(top_warning.risk_score) if top_warning else None,
+            "warning_status": top_warning.status if top_warning else None,
             "synthetic": a.synthetic
         })
     return results

@@ -435,10 +435,24 @@ export const WarningsPage: React.FC<WarningsPageProps> = ({
               <ExposureGraph
                 cveId={detail.threat?.cve_ids?.[0] || detail.security_event?.event_type || 'CVE-2026-4421'}
                 product={detail.asset?.product || 'nginx'}
+                version={detail.asset?.version}
+                environment={detail.asset?.environment || 'PROD'}
                 hostname={detail.asset?.hostname || detail.target_hostname || 'target-host'}
                 attackerIp={detail.security_event?.source_ip || '198.51.100.23'}
                 isInternetFacing={detail.asset?.internet_facing ?? true}
                 score={detail.risk_score}
+                isMitigated={
+                  approvedState ||
+                  detail.status === 'MITIGATED' ||
+                  detail.status === 'PATCH_SIMULATED' ||
+                  detail.status === 'APPROVED' ||
+                  (detail.rules_fired || []).includes('R7_COMPENSATING_CONTROL_MITIGATION')
+                }
+                mitigationLabel={
+                  approvedState || detail.status === 'PATCH_SIMULATED'
+                    ? 'Patch Approved & Simulated + Perimeter Shield Active'
+                    : 'Rule R7 Perimeter Containment Barrier Active (-20% Risk)'
+                }
               />
 
               {/* Cited Evidence & Rules */}

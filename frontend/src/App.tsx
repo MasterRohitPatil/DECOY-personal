@@ -210,7 +210,13 @@ export function App() {
           )}
 
           {currentPage === 'attack-lab' && (
-            <AttackLabPage />
+            <AttackLabPage
+              onRefresh={refreshData}
+              onSelectWarning={id => {
+                setSelectedWarningId(id);
+                setCurrentPage('warnings');
+              }}
+            />
           )}
 
           {currentPage === 'assets' && (
@@ -220,6 +226,10 @@ export function App() {
               error={dataError}
               onRefresh={refreshData}
               onOpenUpload={() => setIsUploadOpen(true)}
+              onSelectWarning={id => {
+                setSelectedWarningId(id);
+                setCurrentPage('warnings');
+              }}
             />
           )}
 

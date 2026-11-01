@@ -8,11 +8,11 @@ interface DimensionBarsProps {
 
 export const DimensionBars: React.FC<DimensionBarsProps> = ({ dimensions, confidence }) => {
   const dims = [
-    { key: 'S', label: 'Severity (CVSS)', val: dimensions.S, weight: '30%', desc: 'Base vulnerability flaw severity' },
-    { key: 'E', label: 'Exploitation (KEV/PoC)', val: dimensions.E, weight: '30%', desc: 'Exploit ladder level L0–L5' },
-    { key: 'X', label: 'Exposure Factor', val: dimensions.X, weight: '20%', desc: 'Internet-facing vs internal isolation' },
-    { key: 'V', label: 'Velocity / Origins', val: dimensions.V, weight: '10%', desc: 'Reporting acceleration across sources' },
-    { key: 'I', label: 'Impact / Criticality', val: dimensions.I, weight: '10%', desc: 'Asset tier & business dependencies' }
+    { key: 'S', label: 'Severity (CVSS)', val: dimensions.S, weight: '30%', maxPts: 30, desc: 'Base vulnerability flaw severity' },
+    { key: 'E', label: 'Exploitation (KEV/PoC)', val: dimensions.E, weight: '30%', maxPts: 30, desc: 'Exploit ladder level L0–L5' },
+    { key: 'X', label: 'Exposure Factor', val: dimensions.X, weight: '20%', maxPts: 20, desc: 'Internet-facing vs internal isolation' },
+    { key: 'V', label: 'Velocity / Origins', val: dimensions.V, weight: '10%', maxPts: 10, desc: 'Reporting acceleration across sources' },
+    { key: 'I', label: 'Impact / Criticality', val: dimensions.I, weight: '10%', maxPts: 10, desc: 'Asset tier & business dependencies' }
   ];
 
   return (
@@ -29,16 +29,20 @@ export const DimensionBars: React.FC<DimensionBarsProps> = ({ dimensions, confid
       <div className="space-y-2.5">
         {dims.map(d => {
           const pct = Math.min(Math.max(d.val * 100, 0), 100);
+          const contribPts = (d.val * d.maxPts).toFixed(1);
           return (
             <div key={d.key} className="space-y-1">
-              <div className="flex justify-between text-xs">
+              <div className="flex justify-between text-xs items-center">
                 <span className="text-slate-700 dark:text-slate-300 flex items-center gap-1.5 font-medium">
                   <span className="font-mono font-bold text-cyan-600 dark:text-cyan-400 bg-slate-100 dark:bg-slate-900 px-1 rounded text-[11px] border border-slate-200 dark:border-slate-800">{d.key}</span>
                   {d.label}
                   <span className="text-[10px] text-slate-400 font-mono">({d.weight})</span>
                 </span>
-                <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
-                  {d.val.toFixed(2)}
+                <span className="font-mono font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                  <span>{d.val.toFixed(2)}</span>
+                  <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-900 text-cyan-700 dark:text-cyan-400 border border-slate-200 dark:border-slate-800">
+                    +{contribPts}/{d.maxPts} pts
+                  </span>
                 </span>
               </div>
               <div className="w-full bg-slate-100 dark:bg-slate-900 rounded-full h-2 overflow-hidden border border-slate-200 dark:border-slate-800">

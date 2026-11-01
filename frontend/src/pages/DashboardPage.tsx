@@ -141,7 +141,11 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
     if (!spotlightWarning) return;
     setExportingPdf(true);
     try {
-      await generatePdfThreatReport(spotlightWarning, overview);
+      if (spotlightWarning.id) {
+        window.open(api.getWarningPdfUrl(spotlightWarning.id), '_blank');
+      } else {
+        await generatePdfThreatReport(spotlightWarning, overview);
+      }
       setPdfExported(true);
       setTimeout(() => setPdfExported(false), 2500);
     } catch (e) {
@@ -156,7 +160,19 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
     const src = isKev ? 'CISA KEV' : (w.rules_fired && w.rules_fired.some(r => r.includes('WAF')) ? 'CERT-In' : 'NVD (NIST)');
     const cveFromTitle = w.title.match(/CVE-\d{4}-\d+/i);
     const cveFromId = w.id.match(/CVE-\d{4}-\d+/i);
-    const cveId = cveFromTitle ? cveFromTitle[0].toUpperCase() : (cveFromId ? cveFromId[0].toUpperCase() : (w.id.length > 18 ? w.id.slice(0, 16) + '...' : w.id));
+    const cveId = w.cve_id
+      ? w.cve_id.toUpperCase()
+      : cveFromTitle
+      ? cveFromTitle[0].toUpperCase()
+      : cveFromId
+      ? cveFromId[0].toUpperCase()
+      : w.id.length > 18
+      ? w.id.slice(0, 16) + '...'
+      : w.id;
+
+    const cleanProduct = w.product
+      ? `${w.product}${w.version ? ` ${w.version}` : ''}`
+      : w.title.split(' ')[0];
 
     return {
       id: cveId,
@@ -167,12 +183,13 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
       sev: w.band === 'CRITICAL' ? 'Critical' : (w.band === 'HIGH' ? 'High' : 'Medium'),
       score: w.risk_score,
       asset: w.target_hostname || 'auth-srv-01.prod.sentinel',
-      ip: isKev ? '185.220.101.5' : '198.51.100.23',
+      environment: w.environment || 'PROD',
+      ip: w.source_ip || (isKev ? '185.220.101.5' : '198.51.100.23'),
       policy: w.rules_fired && w.rules_fired[0] ? w.rules_fired[0] : 'R1_ACTIVE_EXPLOIT',
       status: w.status,
       vector: 'Remote Code Execution / Telemetry Stream',
       color: w.band === 'CRITICAL' ? '#EF4444' : (w.band === 'HIGH' ? '#F97316' : '#FBBF24'),
-      product: w.title.split(' ')[0],
+      product: cleanProduct,
       action: w.brief_summary || 'Execute perimeter IP block and deploy verified vendor update.'
     };
   });
@@ -275,12 +292,20 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
     setSimDone(false);
     setActiveStep(1);
 
+    const scenarioMap: Record<string, { attackType: string; host: string }> = {
+      'Brute Force (SSH)': { attackType: 'brute-force', host: 'auth-srv-01.prod.sentinel' },
+      'Layer 7 DoS': { attackType: 'dos', host: 'edge-proxy-01.prod.sentinel' },
+      'Botnet C2': { attackType: 'malicious-ip', host: 'vpn-gw-01.prod.sentinel' },
+      'Spear-Phishing': { attackType: 'phishing', host: 'web-portal-01.prod.sentinel' },
+    };
+    const chosen = scenarioMap[scenario] || scenarioMap['Brute Force (SSH)'];
+
     try {
       setTimeout(() => setActiveStep(2), 350);
       setTimeout(() => setActiveStep(3), 700);
 
-      // Execute authentic backend attack pipeline
-      await api.triggerAttack('brute-force', 'auth-srv-01.prod.sentinel');
+      // Execute authentic backend attack pipeline for selected scenario & host
+      await api.triggerAttack(chosen.attackType, chosen.host);
 
       setActiveStep(4);
       setTimeout(() => {
@@ -840,7 +865,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
       {/* 4. Live Attack Simulation Pipeline Stepper */}
       <div className="bg-white dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xs space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <Terminal className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
             <h3 className="font-bold text-sm text-slate-900 dark:text-white">
               Live Attack Simulation Pipeline
@@ -850,7 +875,22 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             </span>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {['Brute Force (SSH)', 'Layer 7 DoS', 'Botnet C2', 'Spear-Phishing'].map(scen => (
+              <button
+                key={scen}
+                type="button"
+                onClick={() => handleRunSimulation(scen)}
+                disabled={simulating}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all border ${
+                  selectedScenario === scen
+                    ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
+                    : 'bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:text-slate-900 dark:hover:text-white'
+                } disabled:opacity-50`}
+              >
+                {scen}
+              </button>
+            ))}
             <button
               onClick={() => handleRunSimulation(selectedScenario)}
               disabled={simulating}
@@ -1065,7 +1105,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                 </div>
                 <div className="text-[11px] text-slate-600 dark:text-slate-400 font-mono leading-relaxed">
                   {inspectedNode === 'THREAT' && `CVE: ${activeThreat.id} | Score: ${activeThreat.score.toFixed(1)}`}
-                  {inspectedNode === 'ASSET' && `Host: ${activeThreat.asset} (Tier-1 PROD)`}
+                  {inspectedNode === 'ASSET' && `Host: ${activeThreat.asset} (${activeThreat.environment || 'PROD'} Tier)`}
                   {inspectedNode === 'INTEL' && `Feed: ${activeThreat.src} (Verified Feed)`}
                   {inspectedNode === 'IP' && `Attacker IOC: ${activeThreat.ip}`}
                   {inspectedNode === 'POLICY' && `Section 3.4 Rule: ${activeThreat.policy}`}
