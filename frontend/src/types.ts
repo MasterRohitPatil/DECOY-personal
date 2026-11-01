@@ -84,6 +84,8 @@ export interface OverviewData {
   };
   threats_ingested: number;
   security_events_logged: number;
+  noise_reduction_ratio?: number;
+  total_feed_records?: number;
   source_health: Array<{
     source: string;
     status: string;

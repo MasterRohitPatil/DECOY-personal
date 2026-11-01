@@ -90,3 +90,4 @@ def get_current_user(
             detail="User account no longer exists."
         )
     return user
+

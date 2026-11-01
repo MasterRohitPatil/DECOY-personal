@@ -37,6 +37,7 @@ export const WarningsPage: React.FC<WarningsPageProps> = ({
   const [approvedState, setApprovedState] = useState(false);
   const [aiBrief, setAiBrief] = useState<any | null>(null);
   const [loadingAi, setLoadingAi] = useState(false);
+  const [aiBriefError, setAiBriefError] = useState<string | null>(null);
 
   // Stepper state
   const [pipelineStage, setPipelineStage] = useState(0);
@@ -56,6 +57,7 @@ export const WarningsPage: React.FC<WarningsPageProps> = ({
     setLoadingDetail(true);
     setDetailError(null);
     setAiBrief(null);
+    setAiBriefError(null);
     try {
       const res = await api.getWarningDetail(id);
       setDetail(res);
@@ -75,11 +77,12 @@ export const WarningsPage: React.FC<WarningsPageProps> = ({
   const handleGenerateAiBrief = async () => {
     if (!detail) return;
     setLoadingAi(true);
+    setAiBriefError(null);
     try {
       const res = await api.getAiBrief(detail.id);
       setAiBrief(res);
     } catch (e: any) {
-      console.error(e);
+      setAiBriefError(e.message || 'Failed to generate AI executive brief.');
     } finally {
       setLoadingAi(false);
     }
@@ -360,6 +363,17 @@ export const WarningsPage: React.FC<WarningsPageProps> = ({
                 </button>
               </div>
 
+              {/* AI Brief Error Callout Box */}
+              {aiBriefError && (
+                <div className="p-3.5 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 text-xs text-red-700 dark:text-red-300 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 text-red-500 shrink-0" />
+                    <span><strong>AI Brief Error:</strong> {aiBriefError}</span>
+                  </div>
+                  <button onClick={() => setAiBriefError(null)} className="text-red-400 hover:text-red-600 font-bold ml-2">✕</button>
+                </div>
+              )}
+
               {/* AI Executive Brief Callout Box */}
               {aiBrief && (
                 <div className="p-4 rounded-xl bg-purple-50 dark:bg-gradient-to-r dark:from-purple-950/40 dark:via-indigo-950/30 dark:to-slate-950 border border-purple-200 dark:border-purple-700/60 shadow-sm space-y-2">
@@ -403,7 +417,7 @@ export const WarningsPage: React.FC<WarningsPageProps> = ({
               <ExposureGraph
                 cveId={detail.threat?.cve_ids?.[0] || 'CVE-2026-4421'}
                 product={detail.asset?.product || 'nginx'}
-                hostname={detail.target_hostname}
+                hostname={detail.asset?.hostname || detail.target_hostname || 'target-host'}
                 isInternetFacing={detail.asset?.internet_facing ?? true}
                 score={detail.risk_score}
               />

@@ -2,21 +2,21 @@ import React from 'react';
 import { ShieldAlert, Server, Box, Globe, Skull } from 'lucide-react';
 
 interface ExposureGraphProps {
-  cveId: string;
-  product: string;
-  hostname: string;
+  cveId?: string;
+  product?: string;
+  hostname?: string;
   attackerIp?: string;
-  isInternetFacing: boolean;
-  score: number;
+  isInternetFacing?: boolean;
+  score?: number;
 }
 
 export const ExposureGraph: React.FC<ExposureGraphProps> = ({
-  cveId,
-  product,
-  hostname,
+  cveId = 'CVE-2024-UNKNOWN',
+  product = 'Software Package',
+  hostname = 'target-host.prod.sentinel',
   attackerIp = '198.51.100.23',
-  isInternetFacing,
-  score
+  isInternetFacing = false,
+  score = 50.0
 }) => {
   return (
     <div className="bg-white dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800/90 rounded-2xl p-5 shadow-xs transition-colors">
@@ -89,8 +89,8 @@ export const ExposureGraph: React.FC<ExposureGraphProps> = ({
             <div className="w-11 h-11 rounded-xl bg-emerald-50 dark:bg-emerald-950/80 border border-emerald-300 dark:border-emerald-600 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shadow-sm shrink-0">
               <Server className="w-5 h-5" />
             </div>
-            <span className="text-[11px] font-mono font-bold text-emerald-600 dark:text-emerald-400 mt-2 truncate max-w-[120px]" title={hostname}>
-              {hostname.split('.')[0]}
+            <span className="text-[11px] font-mono font-bold text-emerald-600 dark:text-emerald-400 mt-2 truncate max-w-[120px]" title={hostname || 'target-host'}>
+              {(hostname || 'target-host').split('.')[0]}
             </span>
             <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">
               {isInternetFacing ? 'Public Ingress' : 'Internal Host'}

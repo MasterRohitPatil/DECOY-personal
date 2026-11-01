@@ -85,3 +85,4 @@ def test_user_registration_flow():
         "organization": "D3COY Evaluation Panel"
     })
     assert dup_res.status_code == 409
+

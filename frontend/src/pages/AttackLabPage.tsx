@@ -80,7 +80,7 @@ export const AttackLabPage: React.FC = () => {
 
   // SMTP Email Dispatch State
   const [smtpStatus, setSmtpStatus] = useState<SmtpStatusResponse | null>(null);
-  const [emailRecipient, setEmailRecipient] = useState<string>('rohitpatil.solo@gmail.com');
+  const [emailRecipient, setEmailRecipient] = useState<string>('');
   const [sendingEmail, setSendingEmail] = useState<boolean>(false);
   const [emailSentStatus, setEmailSentStatus] = useState<string | null>(null);
 
@@ -94,7 +94,10 @@ export const AttackLabPage: React.FC = () => {
           api.getSmtpStatus().catch(() => null)
         ]);
         setAssets(assetList);
-        if (smtp) setSmtpStatus(smtp);
+        if (smtp) {
+          setSmtpStatus(smtp);
+          if (smtp.from_address) setEmailRecipient(smtp.from_address);
+        }
         if (assetList.length > 0 && !assetList.some(a => a.hostname === selectedHost)) {
           setSelectedHost(assetList[0].hostname);
         }
@@ -139,6 +142,7 @@ export const AttackLabPage: React.FC = () => {
   const handleMitigate = async () => {
     if (!result) return;
     setMitigating(true);
+    setErrorMsg(null);
     try {
       const res = await api.blockIp(result.source_ip);
       setIsMitigated(true);
@@ -151,8 +155,7 @@ export const AttackLabPage: React.FC = () => {
         });
       }
     } catch (e: any) {
-      console.error(e);
-      setIsMitigated(true);
+      setErrorMsg('Mitigation failed: ' + (e.message || 'Unable to apply firewall drop rule.'));
     } finally {
       setMitigating(false);
     }
@@ -343,7 +346,7 @@ export const AttackLabPage: React.FC = () => {
                 <Icon className={`w-4 h-4 ${isSelected ? 'text-red-600 dark:text-red-400' : 'text-slate-400'}`} />
                 <span className="text-[10px] font-mono text-slate-400">{atk.protocol.split(' ')[0]}</span>
               </div>
-              <h4 className="font-bold text-xs truncate">{atk.title}</h4>
+              <h4 className="font-bold text-xs line-clamp-2 min-h-[32px] leading-snug">{atk.title}</h4>
               <span className="text-[10px] text-slate-400 truncate block mt-0.5">{atk.protocol}</span>
             </button>
           );
@@ -459,7 +462,7 @@ export const AttackLabPage: React.FC = () => {
                     </div>
 
                     <h4 className="font-bold text-slate-900 dark:text-white text-xs">{node.phase}</h4>
-                    <p className="text-[11px] font-mono text-slate-700 dark:text-slate-300 mt-1 font-semibold truncate">
+                    <p className="text-[11px] font-mono text-slate-700 dark:text-slate-300 mt-1 font-semibold break-words">
                       {node.entity}
                     </p>
                     <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1.5 leading-relaxed">

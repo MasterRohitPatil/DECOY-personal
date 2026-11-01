@@ -183,7 +183,7 @@ def simulate_attack(
     rules_fired = score_res["rules_fired"] + ["LIVE_ATTACK_TELEMETRY_MATCH"]
 
     # 4. Save or Update Real Warning in PostgreSQL
-    warning_id = f"W-ATK-{int(event_ts.timestamp()) % 10000:04d}"
+    warning_id = f"W-ATK-{uuid.uuid4().hex[:8].upper()}"
     warning = Warning(
         id=warning_id,
         security_event_id=event.id,

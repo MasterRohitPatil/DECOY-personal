@@ -35,14 +35,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
       label: 'Early Warning Hub',
       icon: ShieldAlert,
       badge: criticalCount > 0 ? `${criticalCount}` : undefined,
-      badgeColor: 'bg-red-500 text-white'
+      badgeColor: 'bg-red-50 dark:bg-red-950/60 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-900'
     },
     {
       id: 'attack-lab',
       label: 'Attack Lab & Kill Chain',
       icon: Flame,
       badge: 'Live',
-      badgeColor: 'bg-amber-500 text-white'
+      badgeColor: 'bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-900'
     },
     {
       id: 'assets',
@@ -56,7 +56,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       label: 'Incident Alert Center',
       icon: Bell,
       badge: unreadAlerts > 0 ? `${unreadAlerts}` : undefined,
-      badgeColor: 'bg-emerald-500 text-white'
+      badgeColor: 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900'
     },
     {
       id: 'audit',
@@ -166,13 +166,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       {/* Footer System Status */}
       {!isCollapsed && (
-        <div className="p-4 border-t border-slate-100 dark:border-slate-800/80 bg-slate-50/70 dark:bg-slate-950/60">
-          <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 font-mono mb-1">
-            <span>Database</span>
-            <span className="text-blue-600 dark:text-cyan-400 font-bold">Supabase Postgres</span>
+        <div className="p-3 m-3 rounded-xl border border-slate-200 dark:border-slate-800/80 bg-slate-50/80 dark:bg-slate-900/60">
+          <div className="flex items-center justify-between text-[11px] font-mono mb-1">
+            <span className="flex items-center gap-1.5 text-slate-600 dark:text-slate-400 font-medium">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              PostgreSQL
+            </span>
+            <span className="text-emerald-600 dark:text-emerald-400 font-bold text-[10px]">Connected</span>
           </div>
-          <p className="text-[10px] text-slate-500 dark:text-slate-500 leading-tight">
-            Deterministic version matching with zero hallucination.
+          <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">
+            Deterministic matching engine • Zero LLM hallucination
           </p>
         </div>
       )}

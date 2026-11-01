@@ -5,3 +5,4 @@ CVE-2023-44487,HTTP/2 Rapid Reset Gateway DDoS Flood,nginx,>=1.20.0 <=1.25.2,7.5
 CVE-2024-28995,SolarWinds Serv-U Path Traversal Exfiltration,serv-u,<=15.4.2,8.6,4,0.82,true,Directory traversal vulnerability permitting arbitrary host file exfiltration across internet perimeter.
 CVE-2024-21762,Fortinet FortiOS SSL-VPN Remote Code Execution,fortios,>=7.0.0 <=7.4.2,9.8,5,0.96,true,Out-of-bounds write in sslvpnd engine allowing unauthenticated remote execution.
 INVALID-NO-PRODUCT,Corrupted vulnerability record,,<=1.0.0,5.0,2,0.10,false,Diagnostic test case row to confirm schema error reporting.
+

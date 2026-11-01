@@ -1,3 +1,4 @@
+import html
 import urllib.parse
 import smtplib
 from email.mime.multipart import MIMEMultipart
@@ -49,8 +50,16 @@ def generate_email_alert(
     band: str,
     recommended_action: str
 ) -> Dict[str, Any]:
-    """Generates a rich HTML incident alert email."""
+    """Generates a rich HTML incident alert email with strict HTML escaping."""
     
+    # Sanitize user-provided fields to prevent HTML injection in email clients
+    safe_title = html.escape(str(title))
+    safe_target = html.escape(str(target_hostname))
+    safe_source = html.escape(str(source_ip))
+    safe_warning_id = html.escape(str(warning_id))
+    safe_action = html.escape(str(recommended_action))
+    safe_band = html.escape(str(band))
+
     badge_color = "#EF4444" if band == "CRITICAL" else "#F59E0B"
     
     html_body = f"""
@@ -72,19 +81,19 @@ def generate_email_alert(
       <div class="card">
         <div class="header">
           <h2 style="margin:0; color:#38BDF8;">SENTINEL GRID</h2>
-          <span class="badge">{band} ({risk_score:.1f})</span>
+          <span class="badge">{safe_band} ({risk_score:.1f})</span>
         </div>
-        <h3 style="margin-top:0;">{title}</h3>
+        <h3 style="margin-top:0;">{safe_title}</h3>
         <p>A critical cyber threat has been matched to your organizational asset inventory.</p>
         
         <div class="metric-box">
-          <p style="margin:4px 0;"><strong>Target Hostname:</strong> <span class="mono">{target_hostname}</span></p>
-          <p style="margin:4px 0;"><strong>Attacker Origin / Source IP:</strong> <span class="mono">{source_ip}</span></p>
-          <p style="margin:4px 0;"><strong>Warning Identifier:</strong> <span class="mono">{warning_id}</span></p>
-          <p style="margin:4px 0;"><strong>Recommended Mitigation:</strong> {recommended_action}</p>
+          <p style="margin:4px 0;"><strong>Target Hostname:</strong> <span class="mono">{safe_target}</span></p>
+          <p style="margin:4px 0;"><strong>Attacker Origin / Source IP:</strong> <span class="mono">{safe_source}</span></p>
+          <p style="margin:4px 0;"><strong>Warning Identifier:</strong> <span class="mono">{safe_warning_id}</span></p>
+          <p style="margin:4px 0;"><strong>Recommended Mitigation:</strong> {safe_action}</p>
         </div>
 
-        <a href="http://localhost:5173/warnings/{warning_id}" class="btn">View Forensic Breakdown</a>
+        <a href="http://localhost:5173/warnings/{safe_warning_id}" class="btn">View Forensic Breakdown</a>
       </div>
     </body>
     </html>

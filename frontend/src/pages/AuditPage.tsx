@@ -34,14 +34,19 @@ export const AuditPage: React.FC = () => {
     fetchAudit();
   }, []);
 
-  const handleVerifyIntegrity = () => {
+  const handleVerifyIntegrity = async () => {
     setVerifying(true);
     setJustVerified(false);
-    setTimeout(() => {
-      setVerifying(false);
+    try {
+      await api.verifyAuditTrail();
+      await fetchAudit();
       setJustVerified(true);
       setTimeout(() => setJustVerified(false), 3000);
-    }, 900);
+    } catch (e: any) {
+      setError(e.message || 'Audit verification failed');
+    } finally {
+      setVerifying(false);
+    }
   };
 
   const copyHash = (hash: string) => {
@@ -154,7 +159,7 @@ export const AuditPage: React.FC = () => {
       {/* Audit Table */}
       <div className="bg-white dark:bg-[#0B0F19] rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs border-collapse font-mono">
+          <table className="w-full min-w-[960px] text-left text-xs border-collapse font-mono whitespace-nowrap">
             <thead>
               <tr className="bg-slate-50 dark:bg-slate-950 text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800 font-semibold uppercase text-[11px]">
                 <th className="py-3 px-4">Timestamp (UTC)</th>

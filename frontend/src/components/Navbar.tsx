@@ -47,45 +47,36 @@ export const Navbar: React.FC<NavbarProps> = ({
     setWasResetting(resetting);
   }, [resetting]);
   return (
-    <header className="h-16 bg-white dark:bg-[#080C14] border-b border-slate-200 dark:border-slate-800/90 px-5 lg:px-6 flex items-center justify-between shrink-0 select-none transition-colors duration-200 z-20">
-      {/* Left: Page Title & Search Bar */}
-      <div className="flex items-center gap-4 lg:gap-6 min-w-0">
-        <h2 className="text-sm lg:text-base font-extrabold text-slate-900 dark:text-white tracking-tight whitespace-nowrap">
+    <header className="h-16 bg-white dark:bg-[#080C14] border-b border-slate-200 dark:border-slate-800/90 px-4 sm:px-6 flex items-center justify-between shrink-0 select-none transition-colors duration-200 z-20">
+      {/* Left: Page Title & Breadcrumb */}
+      <div className="flex items-center gap-3 shrink-0">
+        <h2 className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white tracking-tight whitespace-nowrap">
           {currentPageTitle}
         </h2>
-
-        {/* Global Search Bar (Only when space permits, never squishing controls) */}
-        <div className="hidden 2xl:flex items-center bg-slate-100/90 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 w-64 text-xs text-slate-500 dark:text-slate-400 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500 transition-all shrink-0">
-          <Search className="w-3.5 h-3.5 mr-2 text-slate-400 shrink-0" />
-          <input
-            type="text"
-            placeholder="Search threats, assets, CVE..."
-            className="bg-transparent border-none outline-none w-full text-slate-800 dark:text-slate-200 placeholder-slate-400 text-xs"
-          />
-        </div>
       </div>
 
       {/* Right: Global Actions, Telemetry, and User Profile */}
-      <div className="flex items-center gap-2 lg:gap-2.5 shrink-0">
-        {/* Threat Feeds Status Pill (Single-line, non-breaking) */}
-        <div className="hidden xl:flex items-center gap-2 bg-slate-50 dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 px-3 py-1.5 rounded-full text-[11px] font-mono whitespace-nowrap shrink-0">
+      <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
+        {/* Threat Feeds Status Pill (Shown on 2xl screens) */}
+        <div className="hidden 2xl:flex items-center gap-2 bg-slate-50 dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 px-3 py-1.5 rounded-full text-[11px] font-mono whitespace-nowrap shrink-0">
           <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
           <span className="text-slate-500 dark:text-slate-400 font-medium">Feeds:</span>
           <span className="text-slate-800 dark:text-slate-200 font-bold">NVD • KEV • EPSS</span>
         </div>
 
-        {/* Upload CSV Ingest Button */}
+        {/* Upload CSV Ingest Button (Desktop) */}
         {onOpenUpload && (
           <button
             onClick={onOpenUpload}
-            className="px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/70 dark:hover:bg-blue-900/80 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs whitespace-nowrap shrink-0"
+            title="Upload CSV Threat Intelligence or Asset Dataset"
+            className="hidden xl:flex px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/70 dark:hover:bg-blue-900/80 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 font-bold text-xs items-center gap-1.5 transition-all shadow-xs whitespace-nowrap shrink-0"
           >
             <UploadCloud className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-            <span className="hidden sm:inline">Upload CSV</span>
+            <span>Upload CSV</span>
           </button>
         )}
 
-        {/* Theme Toggle Button (Icon Only - Clean & Minimal) */}
+        {/* Theme Toggle Button */}
         <button
           onClick={onToggleTheme}
           title={theme === 'light' ? 'Switch to Dark Theme' : 'Switch to Light Theme'}
@@ -136,16 +127,16 @@ export const Navbar: React.FC<NavbarProps> = ({
           )}
         </button>
 
-        {/* Active Session Indicator */}
-        <div className="flex items-center gap-2 pl-2 border-l border-slate-200 dark:border-slate-800 shrink-0">
-          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-600 to-cyan-600 text-white font-black text-xs flex items-center justify-center shadow-xs shrink-0">
+        {/* Active Session Card */}
+        <div className="flex items-center gap-2.5 pl-2.5 pr-1.5 py-1 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shrink-0">
+          <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-600 to-indigo-600 text-white font-bold text-xs flex items-center justify-center shadow-xs shrink-0">
             {getInitials(currentUser?.full_name)}
           </div>
           <div className="hidden lg:block text-left whitespace-nowrap">
             <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block leading-tight">
               {currentUser?.full_name || 'SecOps Analyst'}
             </span>
-            <span className="text-[10px] text-blue-600 dark:text-cyan-400 font-mono font-bold block leading-tight">
+            <span className="text-[10px] text-blue-600 dark:text-blue-400 font-mono font-bold block leading-tight">
               {currentUser?.role || 'SECOPS_ANALYST'}
             </span>
           </div>
@@ -154,9 +145,9 @@ export const Navbar: React.FC<NavbarProps> = ({
             <button
               onClick={onLogout}
               title="Sign Out of Session"
-              className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors ml-0.5"
+              className="p-1 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors ml-0.5"
             >
-              <LogOut className="w-4 h-4" />
+              <LogOut className="w-3.5 h-3.5" />
             </button>
           )}
         </div>

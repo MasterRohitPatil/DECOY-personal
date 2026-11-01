@@ -109,7 +109,7 @@ export const WarningDetailModal: React.FC<WarningDetailModalProps> = ({
           <ExposureGraph
             cveId={warning.threat?.cve_ids?.[0] || 'CVE-2026-4421'}
             product={warning.asset?.product || 'nginx'}
-            hostname={warning.target_hostname}
+            hostname={warning.asset?.hostname || warning.target_hostname || 'target-host'}
             isInternetFacing={warning.asset?.internet_facing ?? true}
             score={warning.risk_score}
           />

@@ -8,6 +8,7 @@ import {
   RefreshCw, Check
 } from 'lucide-react';
 import { OverviewData, WarningItem } from '../types';
+import { api } from '../api';
 import { generatePdfThreatReport } from '../utils/pdfReport';
 
 interface DashboardPageProps {
@@ -70,8 +71,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   const dynamicThreatFeed = warnings.map(w => {
     const isKev = w.rules_fired && w.rules_fired.some(r => r.includes('KEV'));
     const src = isKev ? 'CISA KEV' : (w.rules_fired && w.rules_fired.some(r => r.includes('WAF')) ? 'CERT-In' : 'NVD (NIST)');
-    const cveMatch = w.title.match(/CVE-\d{4}-\d+/i);
-    const cveId = cveMatch ? cveMatch[0].toUpperCase() : (w.id.startsWith('W-') ? w.id : `CVE-2024-${w.id.slice(-4)}`);
+    const cveFromTitle = w.title.match(/CVE-\d{4}-\d+/i);
+    const cveFromId = w.id.match(/CVE-\d{4}-\d+/i);
+    const cveId = cveFromTitle ? cveFromTitle[0].toUpperCase() : (cveFromId ? cveFromId[0].toUpperCase() : (w.id.length > 18 ? w.id.slice(0, 16) + '...' : w.id));
 
     return {
       id: cveId,
@@ -111,21 +113,34 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
     brief_summary: activeThreat.action
   } : null);
 
-  const handleRunSimulation = (scenario: string) => {
+  const handleRunSimulation = async (scenario: string) => {
     setSelectedScenario(scenario);
     setSimulating(true);
     setSimDone(false);
     setActiveStep(1);
 
-    setTimeout(() => setActiveStep(2), 500);
-    setTimeout(() => setActiveStep(3), 1000);
-    setTimeout(() => setActiveStep(4), 1600);
-    setTimeout(() => {
+    try {
+      setTimeout(() => setActiveStep(2), 350);
+      setTimeout(() => setActiveStep(3), 700);
+
+      // Execute authentic backend attack pipeline
+      await api.triggerAttack('brute-force', 'auth-srv-01.prod.sentinel');
+
+      setActiveStep(4);
+      setTimeout(() => {
+        setActiveStep(5);
+        setSimulating(false);
+        setSimDone(true);
+        if (onRetry) onRetry();
+        setTimeout(() => setSimDone(false), 3500);
+      }, 500);
+    } catch (e) {
+      console.error('Simulation error:', e);
       setActiveStep(5);
       setSimulating(false);
       setSimDone(true);
       setTimeout(() => setSimDone(false), 3000);
-    }, 2200);
+    }
   };
 
   // 1. LOADING SKELETON
@@ -329,7 +344,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
               <Server className="w-5 h-5" />
             </div>
             <span className="text-[10px] font-mono font-bold text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 px-2 py-0.5 rounded-full border border-blue-200 dark:border-blue-900 flex items-center gap-1 uppercase tracking-wider">
-              100% Coverage
+              {totalAssets} Hosts Active
             </span>
           </div>
           <div className="mt-4">
@@ -352,19 +367,19 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
               <CheckCircle2 className="w-5 h-5" />
             </div>
             <span className="text-[10px] font-mono font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-900 flex items-center gap-1 uppercase tracking-wider">
-              Zero Hallucination
+              Deterministic Filter
             </span>
           </div>
           <div className="mt-4">
             <span className="text-3xl font-extrabold text-emerald-600 dark:text-emerald-400 font-mono tracking-tight">
-              99.7%
+              {overview?.noise_reduction_ratio ? `${overview.noise_reduction_ratio}%` : '99.8%'}
             </span>
             <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block mt-0.5">
               Noise Filter Ratio
             </span>
           </div>
           <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-2 font-medium">
-            Uninstalled CVE noise eliminated
+            Uninstalled CVE noise eliminated by SemVer
           </p>
         </div>
       </div>
@@ -495,12 +510,12 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                     </span>
                   </div>
                   <span className="px-3 py-1 rounded-lg bg-red-600 text-white font-mono text-xs font-black shadow-xs">
-                    CRITICAL RISK
+                    {spotlightWarning.band}
                   </span>
                 </div>
 
                 <div className="mt-2.5 pt-2 border-t border-red-200/60 dark:border-red-900/40 text-[10px] font-mono text-slate-600 dark:text-slate-400 flex items-center justify-between">
-                  <span>Formula: 0.35·C + 0.30·E + 0.20·A + 0.15·T</span>
+                  <span>100 × (0.30S + 0.30E + 0.20X + 0.10V + 0.10I)</span>
                   <span className="text-emerald-600 dark:text-emerald-400 font-bold">Deterministic</span>
                 </div>
               </div>
@@ -508,10 +523,12 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
               {/* Package Verification & Why This Matters */}
               <div className="space-y-2 text-xs">
                 <div className="p-2.5 rounded-lg bg-slate-100 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 text-[11px] font-mono">
-                  <span className="text-[10px] text-slate-400 uppercase font-bold block mb-1">Deterministic Inventory Match</span>
-                  <div className="flex items-center justify-between text-slate-800 dark:text-slate-200">
-                    <span>Target: <strong className="text-blue-600 dark:text-cyan-400">{spotlightWarning.target_hostname}</strong></span>
-                    <span className="text-emerald-600 dark:text-emerald-400 font-bold">SemVer Matched</span>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[10px] text-slate-400 uppercase font-bold">Deterministic Inventory Match</span>
+                    <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold bg-emerald-50 dark:bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">SemVer Matched</span>
+                  </div>
+                  <div className="text-slate-800 dark:text-slate-200 text-xs">
+                    Target: <strong className="text-blue-600 dark:text-cyan-400 font-mono break-all">{spotlightWarning.target_hostname}</strong>
                   </div>
                 </div>
 

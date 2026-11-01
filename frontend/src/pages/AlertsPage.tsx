@@ -103,10 +103,13 @@ export const AlertsPage: React.FC<AlertsPageProps> = ({
 
   // WhatsApp deep-link generation
   const cleanPhone = phoneNumber.replace(/[^0-9]/g, '');
+  const cveId = selectedWarning
+    ? (selectedWarning.id.match(/CVE-\d{4}-\d+/i)?.[0] || selectedWarning.title.match(/CVE-\d{4}-\d+/i)?.[0] || selectedWarning.id)
+    : '';
   const waMessage = selectedWarning
     ? `🚨 *SENTINEL GRID SECURITY ALERT*
 ━━━━━━━━━━━━━━━━━━━
-• *Warning ID:* \`${selectedWarning.id}\`
+• *Advisory / CVE:* \`${cveId}\`
 • *Incident:* ${selectedWarning.title}
 • *Target Asset:* \`${selectedWarning.target_hostname || 'auth-srv-01'}\`
 • *Severity:* *${selectedWarning.band}* (Score: ${selectedWarning.risk_score.toFixed(1)}/100)
@@ -123,8 +126,56 @@ export const AlertsPage: React.FC<AlertsPageProps> = ({
     setTimeout(() => setCopied(false), 2000);
   };
 
+  if (loading && warnings.length === 0) {
+    return (
+      <div className="p-6 lg:p-8 space-y-6 max-w-7xl mx-auto animate-pulse">
+        <div className="bg-white dark:bg-[#0B0F19] p-6 rounded-2xl border border-slate-200 dark:border-slate-800 h-28"></div>
+        <div className="bg-white dark:bg-[#0B0F19] p-5 rounded-2xl border border-slate-200 dark:border-slate-800 h-20"></div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="bg-white dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 h-80"></div>
+          <div className="bg-white dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 h-80"></div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-6 lg:p-8 space-y-6 max-w-7xl mx-auto transition-colors duration-200">
+      {/* Global Error Banner */}
+      {error && (
+        <div className="p-4 rounded-xl bg-red-50 dark:bg-red-950/60 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 text-xs flex items-center justify-between shadow-xs">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-red-500 shrink-0" />
+            <span><strong>Sync Diagnostic:</strong> {error}</span>
+          </div>
+          {onRefresh && (
+            <button
+              onClick={onRefresh}
+              className="px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span>Retry</span>
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* SMTP Check Diagnostic Error */}
+      {smtpCheckError && (
+        <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 text-amber-800 dark:text-amber-300 text-xs flex items-center justify-between shadow-xs">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+            <span><strong>SMTP Notice:</strong> {smtpCheckError}</span>
+          </div>
+          <button
+            onClick={checkSmtp}
+            className="px-2.5 py-1 rounded bg-amber-200 dark:bg-amber-900 text-amber-900 dark:text-amber-100 text-[11px] font-bold hover:bg-amber-300"
+          >
+            Retry Check
+          </button>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-[#0B0F19] p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
         <div>

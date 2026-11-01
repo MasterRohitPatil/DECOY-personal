@@ -125,8 +125,8 @@ export const AssetsPage: React.FC<AssetsPageProps> = ({
       {/* Table & Empty States */}
       <div className="bg-white dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs font-mono">
-            <thead className="bg-slate-50 dark:bg-slate-950 text-slate-600 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800 text-[11px]">
+          <table className="w-full min-w-[860px] text-left text-xs font-mono">
+            <thead className="bg-slate-50 dark:bg-slate-950 text-slate-600 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800 text-[11px] whitespace-nowrap">
               <tr>
                 <th className="p-4">Hostname</th>
                 <th className="p-4">Software Product</th>
@@ -187,7 +187,7 @@ export const AssetsPage: React.FC<AssetsPageProps> = ({
                 </tr>
               ) : (
                 filtered.map(a => (
-                  <tr key={a.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/60 transition-colors">
+                  <tr key={a.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/60 transition-colors whitespace-nowrap">
                     <td className="p-4 font-bold text-slate-900 dark:text-white flex items-center gap-2">
                       <Server className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                       <span>{a.hostname}</span>

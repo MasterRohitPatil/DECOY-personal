@@ -133,12 +133,12 @@ export function App() {
 
   const getPageTitle = () => {
     switch (currentPage) {
-      case 'dashboard': return 'Executive Security Dashboard';
-      case 'warnings': return 'Early Warning Hub (Threat Intelligence & Matching)';
-      case 'attack-lab': return 'Live Attack Lab & Visual Kill Chain Impact';
-      case 'assets': return 'Enterprise Monitored Asset Inventory';
-      case 'alerts': return 'Multi-Channel Incident Alert Center';
-      case 'audit': return 'Cryptographic SecOps Audit Ledger & Merkle Verification';
+      case 'dashboard': return 'Executive Dashboard';
+      case 'warnings': return 'Early Warning Hub';
+      case 'attack-lab': return 'Attack Lab & Kill Chain';
+      case 'assets': return 'Asset Inventory';
+      case 'alerts': return 'Incident Alert Center';
+      case 'audit': return 'Cryptographic Audit Trail';
       default: return 'SENTINEL GRID';
     }
   };
