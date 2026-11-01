@@ -1,6 +1,7 @@
 import html
 import urllib.parse
 import smtplib
+import socket
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
@@ -340,12 +341,24 @@ def send_real_email_via_smtp(
         msg.attach(MIMEText(html_content, "html", "utf-8"))
 
     try:
-        with smtplib.SMTP(host, port, timeout=14) as server:
-            server.ehlo()
-            server.starttls()
-            server.ehlo()
-            server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
-            server.send_message(msg)
+        # Try SSL on port 465 if configured, otherwise STARTTLS on 587
+        if port == 465:
+            with smtplib.SMTP_SSL(host, port, timeout=12) as server:
+                server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
+                server.send_message(msg)
+        else:
+            try:
+                with smtplib.SMTP(host, port, timeout=12) as server:
+                    server.ehlo()
+                    server.starttls()
+                    server.ehlo()
+                    server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
+                    server.send_message(msg)
+            except (socket.timeout, TimeoutError, OSError):
+                # Fallback: Many cloud hosts like Render block 587 but allow SSL 465
+                with smtplib.SMTP_SSL(host, 465, timeout=12) as server:
+                    server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
+                    server.send_message(msg)
             
         return {
             "success": True,
