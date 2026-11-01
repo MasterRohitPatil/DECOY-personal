@@ -17,7 +17,7 @@ app = FastAPI(
     description="SENTINEL GRID — AI-Based National Cyber Threat Early Warning System (D3COY 1.0 PS 01)"
 )
 
-# CORS Configuration — explicit origins required when allow_credentials=True
+# CORS Configuration — allows local, custom CORS_ORIGINS, and any vercel preview/prod domain
 origins = list(set(settings.cors_origins_list + [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
@@ -28,7 +28,7 @@ origins = list(set(settings.cors_origins_list + [
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
-    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:[0-9]+)?$",
+    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:[0-9]+)?$|^https://.*\.vercel\.app$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
